@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multimouse Overlay</title>
+    <link rel="stylesheet" href="overlay.css">
+</head>
+
+<body>
+    <div id="overlay-container">
+        <div id="cursors-container"></div>
+        <div id="info-panel" class="info-panel" style="display: none;">
+            <div class="info-item">
+                <span class="label">Sensibilité:</span>
+                <span id="sensitivity-value">1.5</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Curseurs actifs:</span>
+                <span id="active-cursors">0</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Périphériques:</span>
+                <span id="device-count">0</span>
+            </div>
+            <div class="controls">
+                <div class="control-hint">Ctrl+Shift+/- : Sensibilité</div>
+                <div class="control-hint">Ctrl+R : Reset</div>
+                <div class="control-hint">Ctrl+M : Ajouter souris test</div>
+                <div class="control-hint">Ctrl+D : Infos devices</div>
+                <div class="control-hint">Ctrl+C : Clear tests</div>
+                <div class="control-hint">Échap : Quitter</div>
+            </div>
+        </div>
+
+        <div id="debug-panel" class="debug-panel" style="display: none;">
+            <h3>Debug Info</h3>
+            <div id="debug-info"></div>
+        </div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+
+</html>

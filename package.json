@@ -1,0 +1,55 @@
+{
+  "name": "multimouse-electron",
+  "version": "1.0.0",
+  "description": "Application Multimouse stable avec Electron.js",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "npm run build && electron . --dev",
+    "build": "node-gyp rebuild",
+    "rebuild": "electron-rebuild",
+    "install-deps": "npm install",
+    "postinstall": "node-gyp rebuild"
+  },
+  "keywords": [
+    "multimouse",
+    "cursor",
+    "overlay"
+  ],
+  "author": "Yohan",
+  "license": "MIT",
+  "gypfile": true,
+  "dependencies": {
+    "electron": "^26.0.0",
+    "eslint-plugin-unused-imports": "^4.2.0",
+    "nan": "^2.23.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "chokidar": "^4.0.3",
+    "electron-builder": "^24.0.0",
+    "electron-rebuild": "^3.2.9",
+    "node-addon-api": "^8.5.0",
+    "node-gyp": "^10.0.0"
+  },
+  "build": {
+    "appId": "com.yohan.multimouse",
+    "productName": "Multimouse",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "renderer.js",
+      "overlay.html",
+      "overlay.css",
+      "config.json",
+      "build/Release/multimouse_raw_input.node"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    }
+  }
+}
