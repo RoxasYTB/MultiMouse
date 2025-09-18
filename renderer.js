@@ -9,15 +9,10 @@ class MultimouseRenderer {
     this.activeCursors = document.getElementById('active-cursors');
     this.deviceCount = document.getElementById('device-count');
 
-    this.lastUpdateTime = 0;
-    this.updateThrottle = 0;
+    this.lastPositions = new Map();
     this.pendingUpdates = new Map();
     this.frameRequestId = null;
     this.highPrecisionMode = true;
-
-    this.lastPositions = new Map();
-
-    this.systemCursorTracker = null;
 
     this.init();
   }
@@ -27,67 +22,32 @@ class MultimouseRenderer {
       this.config = await ipcRenderer.invoke('get-config');
       this.updateInfoPanel();
 
-      ipcRenderer.on('cursors-updated', (event, cursorsData) => {
-        this.updateCursors(cursorsData);
-      });
+      const handlers = {
+        'cursors-updated': (d) => this.updateCursors(d),
+        'mouse-move': (d) => this.updateSingleCursor(d),
+        'cursor-position-update': (d) => this.handleHighPrecisionUpdate(d),
+        'cursors-instant-update': (d) => this.handleInstantUpdate(d),
+        'cursor-removed': (d) => this.removeCursor(d),
+        'devices-updated': (d) => (this.deviceCount.textContent = d.count),
+        'config-updated': (d) => {
+          this.config = d;
+          this.updateInfoPanel();
+        },
+        'cursor-type-changed': (d) => this.updateCursorType(d),
+        'cursors-visibility-update': (d) => this.updateCursorsVisibility(d),
+      };
 
-      ipcRenderer.on('mouse-move', (event, mouseData) => {
-        this.updateSingleCursor(mouseData);
-      });
-
-      ipcRenderer.on('cursor-position-update', (event, updateData) => {
-        this.handleHighPrecisionUpdate(updateData);
-      });
-
-      ipcRenderer.on('cursors-instant-update', (event, data) => {
-        this.handleInstantUpdate(data);
-      });
-
-      ipcRenderer.on('cursor-removed', (event, deviceId) => {
-        this.removeCursor(deviceId);
-      });
-
-      ipcRenderer.on('devices-updated', (event, data) => {
-        this.deviceCount.textContent = data.count.toString();
-      });
-
-      ipcRenderer.on('config-updated', (event, newConfig) => {
-        this.config = newConfig;
-        this.updateInfoPanel();
-      });
-
-      ipcRenderer.on('cursor-type-changed', (event, cursorTypeData) => {
-        this.updateCursorType(cursorTypeData);
-      });
-
-      ipcRenderer.on('cursors-visibility-update', (event, data) => {
-        this.updateCursorsVisibility(data);
-      });
-
-      ipcRenderer.on('screen-dimensions-changed', (event, dimensions) => {});
-
-      document.addEventListener('pointermove', (event) => {
-        this.handlePointerMove(event);
-      });
-
+      for (const [evt, fn] of Object.entries(handlers)) ipcRenderer.on(evt, (_, d) => fn(d));
+      document.addEventListener('pointermove', (e) => this.handlePointerMove(e));
       this.startHighPrecisionLoop();
-    } catch (error) {
-      console.error('Erreur initialisation renderer:', error);
+    } catch (err) {
+      console.error('Erreur init renderer:', err);
     }
   }
 
   cleanup() {
-    if (this.frameRequestId) {
-      clearImmediate(this.frameRequestId);
-      this.frameRequestId = null;
-    }
-
-    this.cursors.forEach((cursor, id) => {
-      if (cursor.element && cursor.element.parentNode) {
-        cursor.element.parentNode.removeChild(cursor.element);
-      }
-    });
-
+    if (this.frameRequestId) clearImmediate(this.frameRequestId);
+    this.cursors.forEach((c) => c.element?.remove());
     this.cursors.clear();
     this.lastPositions.clear();
     this.pendingUpdates.clear();
@@ -95,413 +55,179 @@ class MultimouseRenderer {
 
   startHighPrecisionLoop() {
     if (!this.highPrecisionMode) return;
-
-    const processUpdates = () => {
-      const now = performance.now();
-
-      if (this.pendingUpdates.size > 0) {
+    const loop = () => {
+      if (this.pendingUpdates.size) {
         this.processPendingUpdates();
-        this.lastUpdateTime = now;
       }
-
-      if (this.frameRequestId) {
-        clearImmediate(this.frameRequestId);
-      }
-      this.frameRequestId = setImmediate(processUpdates);
+      this.frameRequestId = setImmediate(loop);
     };
-
-    this.frameRequestId = setImmediate(processUpdates);
+    this.frameRequestId = setImmediate(loop);
   }
 
-  handleHighPrecisionUpdate(updateData) {
-    if (updateData.isActive) {
-      this.updateCursorPositionInstant(updateData);
-    } else {
-      this.pendingUpdates.set(updateData.deviceId, updateData);
-    }
+  handleHighPrecisionUpdate(d) {
+    d.isActive ? this.updateCursorPositionInstant(d) : this.pendingUpdates.set(d.deviceId, d);
   }
-
-  handleInstantUpdate(data) {
-    console.log(`📡 Mise à jour instantanée reçue:`, data);
-    data.cursors.forEach((cursorData) => {
-      console.log(`🔄 Traitement curseur: ${cursorData.deviceId}`, cursorData);
-      this.updateCursorPositionInstant(cursorData);
-    });
+  handleInstantUpdate(d) {
+    d.cursors.forEach((c) => this.updateCursorPositionInstant(c));
   }
-
   processPendingUpdates() {
-    if (this.pendingUpdates.size === 0) return;
-
-    this.pendingUpdates.forEach((updateData, deviceId) => {
-      this.updateCursorPositionInstant(updateData);
-    });
-
+    this.pendingUpdates.forEach((d) => this.updateCursorPositionInstant(d));
     this.pendingUpdates.clear();
   }
 
-  updateCursorPositionInstant(updateData) {
-    const cursor = this.cursors.get(updateData.deviceId);
-    if (!cursor) {
-      this.createNewCursor(updateData.deviceId, updateData);
-      return;
+  updateCursorPositionInstant(d) {
+    let cursor = this.cursors.get(d.deviceId);
+    if (!cursor) return this.createNewCursor(d.deviceId, d);
+
+    const last = this.lastPositions.get(d.deviceId);
+    if (!last || last.x !== d.x || last.y !== d.y) {
+      const sizes = {
+        arrow: [-7.5, -7, 24, 24],
+        hand: [-9, -8, 27, 28],
+        ibeam: [-12.5, -14, 30, 27],
+        sizens: [-12, -12, 35, 35],
+        sizewe: [-12, -12, 35, 35],
+        sizenwse: [-12, -12, 35, 35],
+        sizenesw: [-12, -12, 35, 35],
+        sizeall: [-12, -12, 35, 35],
+        default: [0, 0, 26, 26],
+      };
+      const [ox, oy, w, h] = sizes[(d.cursorType || '').toLowerCase()] || sizes.default;
+      Object.assign(cursor.element.style, {
+        transform: `translate3d(${d.x + ox}px, ${d.y + oy}px, 0)`,
+        width: `${w}px`,
+        height: `${h}px`,
+        zoom: 1,
+        imageRendering: 'pixelated',
+        filter: 'contrast(2) grayscale(1)',
+        visibility: 'visible',
+        display: 'block',
+        opacity: '1',
+      });
+      this.lastPositions.set(d.deviceId, { x: d.x, y: d.y });
     }
-
-    const element = cursor.element;
-
-    const lastPos = this.lastPositions.get(updateData.deviceId);
-    const posChanged = !lastPos || lastPos.x !== updateData.x || lastPos.y !== updateData.y;
-
-    if (posChanged) {
-      let offsetX = 0,
-        offsetY = 0,
-        width = 26,
-        height = 26,
-        zoom = 1;
-
-      switch ((updateData.cursorType || '').toLowerCase()) {
-        case 'arrow':
-          offsetX = -7.5;
-          offsetY = -7;
-          width = 24;
-          height = 24;
-          break;
-        case 'hand':
-          offsetX = -9;
-          offsetY = -8;
-          width = 27;
-          height = 28;
-          break;
-        case 'ibeam':
-          offsetX = -12.5;
-          offsetY = -14;
-          width = 30;
-          height = 27;
-          break;
-        case 'sizens':
-        case 'sizewe':
-        case 'sizenwse':
-        case 'sizenesw':
-        case 'sizeall':
-          offsetX = -12;
-          offsetY = -12;
-          width = 35;
-          break;
-        default:
-          offsetX = 0;
-          offsetY = 0;
-          width = 26;
-          break;
-      }
-
-      element.style.transform = `translate3d(${updateData.x + offsetX}px, ${updateData.y + offsetY}px, 0)`;
-      element.style.width = `${width}px`;
-      element.style.height = `${height}px`;
-      element.style.zoom = zoom;
-
-      element.style.imageRendering = 'pixelated';
-      element.style.filter = 'contrast(2) grayscale(1)';
-      this.lastPositions.set(updateData.deviceId, { x: updateData.x, y: updateData.y });
-    }
-
-    if (updateData.isActive) {
-      element.style.visibility = 'visible';
-      element.style.display = 'block';
-    } else {
-      element.style.visibility = 'visible';
-      element.style.display = 'block';
-      element.style.opacity = '1';
-    }
-
-    if (updateData.cursorType && updateData.cursorType !== cursor.cursorType) {
-      this.updateCursorTypeClass(element, cursor.cursorType, updateData.cursorType);
-      cursor.cursorType = updateData.cursorType;
-    }
-
-    cursor.data = updateData;
+    if (d.cursorType && d.cursorType !== cursor.cursorType) this.updateCursorTypeClass(cursor.element, cursor.cursorType, d.cursorType);
+    cursor.cursorType = d.cursorType;
+    cursor.data = d;
   }
 
-  updateCursorTypeClass(element, oldType, newType) {
-    if (oldType) {
-      const oldTypeClass = `cursor-type-${oldType.toLowerCase()}`;
-      element.classList.remove(oldTypeClass);
-    }
-
-    if (newType) {
-      const newTypeClass = `cursor-type-${newType.toLowerCase()}`;
-      element.classList.add(newTypeClass);
-    }
+  updateCursorTypeClass(el, oldT, newT) {
+    if (oldT) el.classList.remove(`cursor-type-${oldT.toLowerCase()}`);
+    if (newT) el.classList.add(`cursor-type-${newT.toLowerCase()}`);
   }
 
-  updateCursors(cursorsData) {
-    const existingCursorIds = new Set(this.cursors.keys());
-
-    cursorsData.forEach((cursorData) => {
-      const cursorId = cursorData.id;
-      existingCursorIds.delete(cursorId);
-
-      if (this.cursors.has(cursorId)) {
-        this.updateExistingCursor(cursorId, cursorData);
-      } else {
-        this.createNewCursor(cursorId, cursorData);
-      }
+  updateCursors(arr) {
+    const existing = new Set(this.cursors.keys());
+    arr.forEach((d) => {
+      existing.delete(d.id);
+      this.cursors.has(d.id) ? this.updateExistingCursor(d.id, d) : this.createNewCursor(d.id, d);
     });
-
-    existingCursorIds.forEach((cursorId) => {
-      this.removeCursor(cursorId);
-    });
-
+    existing.forEach((id) => this.removeCursor(id));
     this.updateInfoPanel();
   }
 
-  updateSingleCursor(mouseData) {
-    const cursorId = mouseData.deviceId;
-
-    if (this.cursors.has(cursorId)) {
-      this.updateExistingCursor(cursorId, {
-        id: cursorId,
-        x: mouseData.x,
-        y: mouseData.y,
-        color: mouseData.color,
-        cursorType: mouseData.cursorType,
-        cursorCSS: mouseData.cursorCSS,
-        cursorFile: mouseData.cursorFile,
-        isVisible: mouseData.isVisible,
-      });
-    } else {
-      this.createNewCursor(cursorId, {
-        id: cursorId,
-        x: mouseData.x,
-        y: mouseData.y,
-        cursorType: mouseData.cursorType,
-        cursorCSS: mouseData.cursorCSS,
-        cursorFile: mouseData.cursorFile,
-        isVisible: mouseData.isVisible,
-      });
-    }
-
+  updateSingleCursor(d) {
+    this.cursors.has(d.deviceId) ? this.updateExistingCursor(d.deviceId, { ...d, id: d.deviceId }) : this.createNewCursor(d.deviceId, { ...d, id: d.deviceId });
     this.updateInfoPanel();
   }
 
   updateCursorsVisibility(data) {
-    data.cursors.forEach((cursorData) => {
-      if (this.cursors.has(cursorData.deviceId)) {
-        const cursor = this.cursors.get(cursorData.deviceId);
-        const element = cursor.element;
-
-        element.style.left = `${cursorData.x}px`;
-        element.style.top = `${cursorData.y}px`;
-
-        if (cursorData.isVisible) {
-          element.style.opacity = '1';
-          element.style.pointerEvents = 'auto';
-        } else {
-          element.style.opacity = '0';
-          element.style.pointerEvents = 'none';
-        }
-
-        cursor.data = cursorData;
-      } else {
-        this.createNewCursor(cursorData.deviceId, cursorData);
-      }
+    data.cursors.forEach((d) => {
+      let c = this.cursors.get(d.deviceId);
+      if (!c) return this.createNewCursor(d.deviceId, d);
+      Object.assign(c.element.style, {
+        left: `${d.x}px`,
+        top: `${d.y}px`,
+        opacity: d.isVisible ? '1' : '0',
+        pointerEvents: d.isVisible ? 'auto' : 'none',
+      });
+      c.data = d;
     });
   }
 
-  updateCursorType(cursorTypeData) {
-    if (cursorTypeData.activeDeviceId && this.cursors.has(cursorTypeData.activeDeviceId)) {
-      const cursorInfo = this.cursors.get(cursorTypeData.activeDeviceId);
-      const element = cursorInfo.element;
-
-      element.classList.remove(...Array.from(element.classList).filter((cls) => cls.startsWith('cursor-type-')));
-
-      const typeClass = `cursor-type-${cursorTypeData.type.toLowerCase()}`;
-      element.classList.add(typeClass);
-
-      cursorInfo.cursorType = cursorTypeData.type;
-      cursorInfo.cursorCSS = cursorTypeData.cssClass;
-      cursorInfo.cursorFile = cursorTypeData.file;
-    } else {
-    }
+  updateCursorType(d) {
+    const c = this.cursors.get(d.activeDeviceId);
+    if (!c) return;
+    c.element.classList.remove(...[...c.element.classList].filter((cls) => cls.startsWith('cursor-type-')));
+    c.element.classList.add(`cursor-type-${d.type.toLowerCase()}`);
+    Object.assign(c, { cursorType: d.type, cursorCSS: d.cssClass, cursorFile: d.file });
   }
 
-  createNewCursor(cursorId, cursorData) {
-    console.log(`🎯 Création du curseur: ${cursorId}`, cursorData);
-
-    const cursorElement = document.createElement('div');
-
-    cursorElement.className = `cursor cursor-${this.cursors.size % 8}`;
-    cursorElement.id = `cursor-${cursorId}`;
-
-    cursorElement.style.willChange = 'transform, visibility';
-    cursorElement.style.backfaceVisibility = 'hidden';
-    cursorElement.style.perspective = '1000px';
-
-    if (cursorData.color) {
-      cursorElement.style.backgroundColor = cursorData.color;
-      cursorElement.style.border = `2px solid ${cursorData.color}`;
-    }
-
-    if (cursorData.cursorType) {
-      const typeClass = `cursor-type-${cursorData.cursorType.toLowerCase()}`;
-      cursorElement.classList.add(typeClass);
-      console.log(`🎨 Type de curseur appliqué: ${typeClass}`);
-    } else {
-      cursorElement.style.width = '24px';
-      cursorElement.style.height = '24px';
-      cursorElement.style.backgroundColor = cursorData.color || '#FF0000';
-      cursorElement.style.border = '2px solid #FFFFFF';
-      cursorElement.style.borderRadius = '50%';
-      console.log(`🎨 Curseur par défaut appliqué`);
-    }
-
-    cursorElement.style.visibility = 'visible';
-    cursorElement.style.display = 'block';
-    cursorElement.style.opacity = '1';
-    cursorElement.style.position = 'absolute';
-    cursorElement.style.zIndex = '1000';
-
-    cursorElement.style.pointerEvents = 'none';
-
-    const arrow = document.createElement('div');
-    arrow.className = 'cursor-body';
-    arrow.innerHTML = ``;
-    cursorElement.appendChild(arrow);
-
-    const posX = cursorData.x || 400;
-    const posY = cursorData.y || 300;
-    cursorElement.style.transform = `translate3d(${posX}px, ${posY}px, 0)`;
-
-    console.log(`📍 Position du curseur: (${posX}, ${posY})`);
-
-    this.cursorsContainer.appendChild(cursorElement);
-    console.log(`✅ Curseur ajouté au DOM: ${cursorId}`);
-
-    setTimeout(() => {
-      const element = document.getElementById(`cursor-${cursorId}`);
-      if (element) {
-        console.log(`🔍 Élément trouvé dans le DOM:`, element.style.transform);
-      } else {
-        console.error(`❌ Élément NON trouvé dans le DOM: cursor-${cursorId}`);
-      }
-    }, 100);
-
-    this.cursors.set(cursorId, {
-      element: cursorElement,
-      data: cursorData,
-      cursorType: cursorData.cursorType || 'Arrow',
-      cursorCSS: cursorData.cursorCSS || 'default',
-      cursorFile: cursorData.cursorFile || 'aero_arrow.cur',
+  createNewCursor(id, d) {
+    const el = document.createElement('div');
+    el.className = `cursor cursor-${this.cursors.size % 8}`;
+    el.id = `cursor-${id}`;
+    Object.assign(el.style, {
+      willChange: 'transform, visibility',
+      backfaceVisibility: 'hidden',
+      perspective: '1000px',
+      visibility: 'visible',
+      display: 'block',
+      opacity: '1',
+      position: 'absolute',
+      zIndex: '1000',
+      pointerEvents: 'none',
     });
 
-    this.lastPositions.set(cursorId, { x: posX, y: posY });
+    if (d.color) {
+      el.style.backgroundColor = d.color;
+      el.style.border = `2px solid ${d.color}`;
+    }
+    if (d.cursorType) el.classList.add(`cursor-type-${d.cursorType.toLowerCase()}`);
+    else Object.assign(el.style, { width: '24px', height: '24px', backgroundColor: d.color || '#F00', border: '2px solid #FFF', borderRadius: '50%' });
+
+    el.appendChild(Object.assign(document.createElement('div'), { className: 'cursor-body' }));
+    el.style.transform = `translate3d(${d.x || 400}px, ${d.y || 300}px, 0)`;
+    this.cursorsContainer.appendChild(el);
+
+    this.cursors.set(id, { element: el, data: d, cursorType: d.cursorType || 'Arrow', cursorCSS: d.cursorCSS || 'default', cursorFile: d.cursorFile || 'aero_arrow.cur' });
+    this.lastPositions.set(id, { x: d.x || 400, y: d.y || 300 });
   }
 
-  updateExistingCursor(cursorId, cursorData) {
-    const cursor = this.cursors.get(cursorId);
-    if (!cursor) return;
-
-    this.positionCursor(cursor.element, cursorData);
-
-    if (cursorData.isVisible !== undefined) {
-      if (cursorData.isVisible) {
-        cursor.element.style.opacity = '1';
-        cursor.element.style.pointerEvents = 'auto';
-      } else {
-        cursor.element.style.opacity = '0';
-        cursor.element.style.pointerEvents = 'none';
-      }
-    } else {
-      cursor.element.style.opacity = '1';
-      cursor.element.style.pointerEvents = 'auto';
+  updateExistingCursor(id, d) {
+    const c = this.cursors.get(id);
+    if (!c) return;
+    c.element.style.transform = `translate3d(${d.x}px, ${d.y}px, 0)`;
+    Object.assign(c.element.style, {
+      opacity: d.isVisible === false ? '0' : '1',
+      pointerEvents: d.isVisible === false ? 'none' : 'auto',
+    });
+    if (d.cursorType && d.cursorType !== c.cursorType) {
+      c.element.classList.remove(`cursor-type-${c.cursorType?.toLowerCase()}`);
+      c.element.classList.add(`cursor-type-${d.cursorType.toLowerCase()}`);
+      Object.assign(c, { cursorType: d.cursorType, cursorCSS: d.cursorCSS, cursorFile: d.cursorFile });
     }
-
-    if (cursorData.cursorType && cursorData.cursorType !== cursor.cursorType) {
-      if (cursor.cursorType) {
-        const oldTypeClass = `cursor-type-${cursor.cursorType.toLowerCase()}`;
-        cursor.element.classList.remove(oldTypeClass);
-      }
-
-      const newTypeClass = `cursor-type-${cursorData.cursorType.toLowerCase()}`;
-      cursor.element.classList.add(newTypeClass);
-
-      cursor.cursorType = cursorData.cursorType;
-      cursor.cursorCSS = cursorData.cursorCSS;
-      cursor.cursorFile = cursorData.cursorFile;
-    }
-
-    cursor.data = cursorData;
+    c.data = d;
   }
 
-  positionCursor(element, cursorData) {
-    element.style.transform = `translate3d(${cursorData.x}px, ${cursorData.y}px, 0)`;
-  }
-
-  removeCursor(cursorId) {
-    const cursor = this.cursors.get(cursorId);
-    if (!cursor) return;
-
-    if (cursor.element.parentNode) {
-      cursor.element.parentNode.removeChild(cursor.element);
-    }
-    this.cursors.delete(cursorId);
-    this.lastPositions.delete(cursorId);
+  removeCursor(id) {
+    this.cursors.get(id)?.element.remove();
+    this.cursors.delete(id);
+    this.lastPositions.delete(id);
     this.updateInfoPanel();
   }
 
   updateInfoPanel() {
-    if (this.config) {
-      this.sensitivityValue.textContent = this.config.sensitivity.toFixed(1);
-    }
-    if (this.activeCursors) {
-      this.activeCursors.textContent = this.cursors.size.toString();
-    }
-
-    const debugInfo = document.getElementById('debug-info');
-    if (debugInfo) {
-      let debugText = `Curseurs actifs: ${this.cursors.size}\n`;
-      this.cursors.forEach((cursor, id) => {
-        const rect = cursor.element.getBoundingClientRect();
-        debugText += `${id}: (${Math.round(cursor.data.x)}, ${Math.round(cursor.data.y)}) - Visible: ${cursor.element.style.visibility}\n`;
-      });
-      debugInfo.textContent = debugText;
-    }
-
-    ipcRenderer.invoke('get-device-count').then((count) => {
-      this.deviceCount.textContent = count.toString();
-    });
+    if (this.config) this.sensitivityValue.textContent = this.config.sensitivity.toFixed(1);
+    this.activeCursors.textContent = this.cursors.size;
+    const dbg = document.getElementById('debug-info');
+    if (dbg) dbg.textContent = `Curseurs actifs: ${this.cursors.size}\n` + [...this.cursors.entries()].map(([id, c]) => `${id}: (${Math.round(c.data.x)}, ${Math.round(c.data.y)}) - Visible: ${c.element.style.visibility}`).join('\n');
+    ipcRenderer.invoke('get-device-count').then((c) => (this.deviceCount.textContent = c));
   }
 
-  addCursorTrail(cursorId, x, y) {
-    const trail = document.createElement('div');
-    trail.className = 'cursor-trail';
-    trail.style.left = `${x}px`;
-    trail.style.top = `${y}px`;
-
-    this.cursorsContainer.appendChild(trail);
-
-    setTimeout(() => {
-      if (trail.parentNode) {
-        trail.parentNode.removeChild(trail);
-      }
-    }, 1000);
+  addCursorTrail(id, x, y) {
+    const t = Object.assign(document.createElement('div'), { className: 'cursor-trail' });
+    Object.assign(t.style, { left: `${x}px`, top: `${y}px` });
+    this.cursorsContainer.appendChild(t);
+    setTimeout(() => t.remove(), 1000);
   }
 
-  handlePointerMove(event) {
-    const mouseData = {
-      deviceId: `pointer_${event.pointerId}`,
-      deltaX: event.movementX,
-      deltaY: event.movementY,
-    };
-
-    ipcRenderer.send('mouse-move', mouseData);
+  handlePointerMove(e) {
+    ipcRenderer.send('mouse-move', { deviceId: `pointer_${e.pointerId}`, deltaX: e.movementX, deltaY: e.movementY });
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const renderer = new MultimouseRenderer();
-});
-
-window.addEventListener('error', (event) => {});
-
-window.addEventListener('unhandledrejection', (event) => {});
-
+document.addEventListener('DOMContentLoaded', () => new MultimouseRenderer());
+window.addEventListener('error', () => {});
+window.addEventListener('unhandledrejection', () => {});
 
