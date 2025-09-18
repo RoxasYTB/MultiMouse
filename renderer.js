@@ -40,9 +40,7 @@ class MultimouseRenderer {
       for (const [evt, fn] of Object.entries(handlers)) ipcRenderer.on(evt, (_, d) => fn(d));
       document.addEventListener('pointermove', (e) => this.handlePointerMove(e));
       this.startHighPrecisionLoop();
-    } catch (err) {
-      console.error('Erreur init renderer:', err);
-    }
+    } catch (err) {}
   }
 
   cleanup() {

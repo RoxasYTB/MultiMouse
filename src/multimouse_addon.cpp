@@ -200,11 +200,11 @@ NAN_METHOD(StartRawInput) {
     if (!RegisterClassA(&wc)) {
         DWORD error = GetLastError();
         if (error != ERROR_CLASS_ALREADY_EXISTS) {
-            printf("Erreur RegisterClassA: %d\n", error);
+
             Nan::ThrowError("Failed to register window class");
             return;
         } else {
-            printf("Classe de fenêtre déjà existante\n");
+
         }
     }
 
@@ -222,11 +222,11 @@ NAN_METHOD(StartRawInput) {
 
     if (!hiddenWindow) {
         DWORD error = GetLastError();
-        printf("Erreur CreateWindowExA: %d\n", error);
+
         Nan::ThrowError("Failed to create hidden window");
         return;
     } else {
-        printf("Fenêtre cachée créée avec succès: %p\n", hiddenWindow);
+
     }
 
     RAWINPUTDEVICE rid[1];
@@ -237,14 +237,13 @@ NAN_METHOD(StartRawInput) {
 
     if (!RegisterRawInputDevices(rid, 1, sizeof(rid[0]))) {
         DWORD error = GetLastError();
-        printf("Erreur RegisterRawInputDevices: %d\n", error);
+
         Nan::ThrowError("Failed to register raw input devices");
         return;
     } else {
-        printf("Périphériques Raw Input enregistrés avec succès\n");
+
     }
 
-    printf("Raw Input démarré avec succès\n");
     info.GetReturnValue().Set(Nan::New<v8::Boolean>(true));
 }
 

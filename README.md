@@ -4,17 +4,17 @@ Application **Electron.js** permettant d’utiliser plusieurs souris simultaném
 
 ## ✨ Fonctionnalités principales
 
-* 🖱️ Gestion de plusieurs curseurs en temps réel
-* 🎨 Curseurs personnalisés avec détection du type
-* 👁️ Overlay transparent par-dessus toutes les apps
-* 💾 Configuration sauvegardée automatiquement
-* 🚀 Rendu optimisé et haute performance
+- 🖱️ Gestion de plusieurs curseurs en temps réel
+- 🎨 Curseurs personnalisés avec détection du type
+- 👁️ Overlay transparent par-dessus toutes les apps
+- 💾 Configuration sauvegardée automatiquement
+- 🚀 Rendu optimisé et haute performance
 
 ## 📋 Prérequis
 
-* Windows 10/11 (64-bit)
-* Node.js 18+
-* [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/fr/downloads/#build-tools-for-visual-studio-2022) (C++ & SDK Windows installés)
+- Windows 10/11 (64-bit)
+- Node.js 18+
+- [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/fr/downloads/#build-tools-for-visual-studio-2022) (C++ & SDK Windows installés)
 
 ## 🚀 Installation & Build
 
@@ -27,7 +27,8 @@ cd MultiMouseElectron
 npm install
 
 # Compiler le module natif
-npm run build   # ou npx electron-rebuild si nécessaire
+npm run build
+npx electron-rebuild
 
 # Lancer l'application
 npm start
@@ -50,4 +51,3 @@ Un fichier `config.json` est généré au premier lancement :
 ## 📝 Licence
 
 Projet sous licence **MIT**.
-

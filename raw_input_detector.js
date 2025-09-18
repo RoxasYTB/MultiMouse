@@ -15,23 +15,18 @@ class RawInputMouseDetector extends EventEmitter {
 
     try {
       const modulePath = path.join(__dirname, 'build', 'Release', 'multimouse_raw_input.node');
-      console.log('🔧 Chargement du module RawInput depuis:', modulePath);
+
       this.rawInputModule = require(modulePath);
-      console.log('✅ Module RawInput chargé avec succès');
 
       this.rawInputModule.setCallbacks(this.handleMouseMove.bind(this), this.handleDeviceChange.bind(this));
-      console.log('🔗 Callbacks RawInput configurés');
 
       const success = this.rawInputModule.startRawInput();
-      console.log('🚀 Démarrage RawInput:', success ? 'SUCCÈS' : 'ÉCHEC');
 
       if (!success) {
-        console.error('❌ Échec du démarrage RawInput');
         return false;
       }
 
       this.isActive = true;
-      console.log('🎯 RawInput activé avec succès');
 
       this.messageProcessInterval = setInterval(() => {
         if (this.rawInputModule) {
@@ -40,14 +35,12 @@ class RawInputMouseDetector extends EventEmitter {
       }, 16);
 
       setTimeout(() => {
-        console.log('🧪 Test de simulation de mouvement...');
         this.simulateTestMovement();
       }, 1000);
 
       this.emit('started');
       return true;
     } catch (error) {
-      console.error('💥 Erreur lors du démarrage RawInput:', error);
       return false;
     }
   }
@@ -89,7 +82,6 @@ class RawInputMouseDetector extends EventEmitter {
     }
 
     if (!actualData || actualData.deviceHandle === undefined || actualData.deviceHandle === null) {
-      console.warn('⚠️ Données invalides, mouvement ignoré');
       return;
     }
 
@@ -220,9 +212,7 @@ class RawInputMouseDetector extends EventEmitter {
     }
   }
 
-  simulateTestMovement() {
-    console.log("🎮 Simulation d'un mouvement de test...");
-  }
+  simulateTestMovement() {}
 }
 
 module.exports = RawInputMouseDetector;

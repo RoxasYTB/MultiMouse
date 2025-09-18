@@ -132,10 +132,7 @@ class MultimouseApp {
 
       const now = Date.now();
       if (activeCursors.length > 0 && now - this.lastLogTime > this.logThrottle) {
-        console.log(`🔄 Mise à jour curseurs actifs: ${activeCursors.length} curseurs`);
-        activeCursors.forEach((c) => {
-          console.log(`   - ${c.deviceId}: ${c.deviceName} (${c.deviceHandle})`);
-        });
+        activeCursors.forEach((c) => {});
         this.lastLogTime = now;
       }
 
@@ -156,19 +153,14 @@ class MultimouseApp {
     });
 
     this.fileWatcher.on('change', (filePath) => {
-      console.log(`🔄 Fichier modifié: ${path.basename(filePath)}`);
       if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
         if (filePath.endsWith('.css')) {
-          console.log('🎨 Rechargement du CSS...');
           this.overlayWindow.webContents.reload();
         } else {
-          console.log('📄 Rechargement de la page...');
           this.overlayWindow.webContents.reload();
         }
       }
     });
-
-    console.log('👀 Surveillance des fichiers activée pour le hot reload');
   }
 
   setupMouseEvents() {
@@ -329,26 +321,18 @@ class MultimouseApp {
   }
 
   startMouseInput() {
-    console.log("🎮 Démarrage de l'entrée souris...");
     try {
       const success = this.mouseDetector.start();
-      console.log('🔧 Résultat du démarrage du détecteur:', success);
+
       if (success) {
         this.centerSystemCursor();
-        console.log('📍 Curseur système centré');
       } else {
-        console.error('❌ Échec du démarrage du détecteur de souris');
       }
-    } catch (error) {
-      console.error('💥 Erreur démarrage mouse input:', error);
-    }
+    } catch (error) {}
 
     try {
       this.cursorTypeDetector.start();
-      console.log('🎨 Détecteur de type de curseur démarré');
-    } catch (error) {
-      console.error('💥 Erreur démarrage cursor detector:', error);
-    }
+    } catch (error) {}
   }
 
   centerSystemCursor() {
@@ -388,7 +372,6 @@ class MultimouseApp {
         totalMovement: 0,
       };
       this.cursors.set(cursorId, cursor);
-      console.log(`🆕 Nouveau curseur créé: ${cursorId} couleur: ${cursor.color}`);
     }
 
     const newX = cursor.x + dx * this.config.sensitivity;
@@ -593,21 +576,16 @@ class MultimouseApp {
 
   toggleCenterMode() {
     this.keepSystemCursorCentered = !this.keepSystemCursorCentered;
-    console.log(`🎯 Centre du curseur système: ${this.keepSystemCursorCentered ? 'ACTIVÉ' : 'DÉSACTIVÉ'}`);
   }
 
   addTestMouse() {
     clearTestMice();
   }
 
-  showDeviceInfo() {
-    console.log('📱 Informations des périphériques:');
-    console.log(`   Nombre de périphériques: ${this.mouseDetector.getDeviceCount()}`);
-  }
+  showDeviceInfo() {}
 
   clearTestMice() {
     this.mouseDetector.cleanupInactiveDevices();
-    console.log('🧹 Souris de test supprimées');
   }
 
   createOverlayWindow() {
@@ -674,19 +652,16 @@ class MultimouseApp {
   increaseSensitivity() {
     this.config.sensitivity = Math.min(5.0, this.config.sensitivity + 0.1);
     this.sendConfigUpdate();
-    console.log(`🎚️ Sensibilité augmentée: ${this.config.sensitivity.toFixed(1)}`);
   }
 
   decreaseSensitivity() {
     this.config.sensitivity = Math.max(0.1, this.config.sensitivity - 0.1);
     this.sendConfigUpdate();
-    console.log(`🎚️ Sensibilité diminuée: ${this.config.sensitivity.toFixed(1)}`);
   }
 
   resetSensitivity() {
     this.config.sensitivity = DEFAULT_CONFIG.sensitivity;
     this.sendConfigUpdate();
-    console.log(`🎚️ Sensibilité réinitialisée: ${this.config.sensitivity.toFixed(1)}`);
   }
 
   sendConfigUpdate() {
@@ -701,13 +676,10 @@ class MultimouseApp {
         const configData = fs.readFileSync(this.configPath, 'utf8');
         const loadedConfig = JSON.parse(configData);
         this.config = { ...DEFAULT_CONFIG, ...loadedConfig };
-        console.log('⚙️ Configuration chargée');
       } else {
-        console.log('⚙️ Configuration par défaut utilisée');
         this.saveConfig();
       }
     } catch (error) {
-      console.error('❌ Erreur lors du chargement de la configuration:', error);
       this.config = { ...DEFAULT_CONFIG };
     }
   }
@@ -715,16 +687,13 @@ class MultimouseApp {
   saveConfig() {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
-    } catch (error) {
-      console.error('❌ Erreur lors de la sauvegarde de la configuration:', error);
-    }
+    } catch (error) {}
   }
 
   shutdown() {
     if (this.isShuttingDown) return;
 
     this.isShuttingDown = true;
-    console.log('🔌 Arrêt de Multimouse...');
 
     if (this.renderRequestId) {
       clearImmediate(this.renderRequestId);
@@ -761,7 +730,6 @@ class MultimouseApp {
       cursor.y = Math.max(0, Math.min(this.screenHeight, newY));
 
       this.sendInstantCursorUpdate(cursor);
-      console.log(`📍 Mouvement simulé pour ${deviceId}: (${cursor.x}, ${cursor.y})`);
     }
   }
 }
@@ -769,11 +737,8 @@ class MultimouseApp {
 const multimouseApp = new MultimouseApp();
 
 process.on('uncaughtException', (error) => {
-  console.error('Exception non gérée:', error);
   multimouseApp.shutdown();
 });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('Promise rejetée:', reason);
-});
+process.on('unhandledRejection', (reason) => {});
 
