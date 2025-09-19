@@ -3,7 +3,12 @@
   "refreshRate": 16,
   "maxCursors": 4,
   "cursorSize": 32,
-  "cursorColors": ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"],
+  "cursorColors": [
+    "#FF0000",
+    "#00FF00",
+    "#0000FF",
+    "#FFFF00"
+  ],
   "highPerformanceMode": true,
   "precisePositioning": true
 }
