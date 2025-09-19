@@ -18,13 +18,9 @@ if (fs.existsSync(reportPath)) {
   fs.unlinkSync(reportPath);
 }
 
-try {
   execSync('npx eslint . --ext .ts --ignore-pattern node_modules/* --rule "no-unused-vars: 2" -f json > eslint-report.json 2>nul', {
     stdio: 'ignore',
   });
-} catch {
-  
-}
 
 if (!fs.existsSync(reportPath)) {
   process.exit(1);
@@ -46,11 +42,10 @@ for (const file of report) {
     if (!varNameMatch) continue;
 
     const varName = varNameMatch[1];
-    let line = code[lineIndex].trim();
+    const line = code[lineIndex].trim();
 
     let declType = 'variable';
 
-    
     const funcRegex = new RegExp(`^(?:async\\s+)?(?:export\\s+)?(?:function\\s+|const\\s+${varName}\\s*=\\s*(?:async\\s+)?\\(|let\\s+${varName}\\s*=\\s*(?:async\\s+)?\\()`);
     if (funcRegex.test(line)) {
       let depth = 0;
@@ -76,7 +71,6 @@ for (const file of report) {
       continue;
     }
 
-    
     const regex = new RegExp(`\\b(let|const|var)\\s+${varName}\\s*=[^,;]*[;,]?`);
     const match = code[lineIndex].match(regex);
     if (match) {
@@ -91,7 +85,7 @@ for (const file of report) {
   }
 
   if (changed) {
-    
+
     code = code.filter((line, i, arr) => {
       if (line.trim() !== '') return true;
       return i > 0 && arr[i - 1].trim() !== '';

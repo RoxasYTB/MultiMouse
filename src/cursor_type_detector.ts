@@ -174,9 +174,9 @@ while ($true) {
             this.currentCursorType = output;
 
             for (const callback of this.callbacks) {
-              try {
+             
                 callback(output);
-              } catch (error) {}
+
             }
           }
         }
@@ -256,4 +256,5 @@ while ($true) {
     };
   }
 }
+
 

@@ -276,3 +276,5 @@ export class MouseDetector extends EventEmitter {
     }
   }
 }
+
+

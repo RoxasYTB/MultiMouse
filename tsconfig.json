@@ -28,7 +28,7 @@
     "noPropertyAccessFromIndexSignature": false,
     "noUncheckedIndexedAccess": false
   },
-  "include": ["src/**/*", "src/**/*.ts"],
+  "include": ["src/**/*", "src/**/*.ts", "eslint.config.ts"],
   "exclude": ["node_modules", "dist", "build", "**/*.js"],
   "ts-node": {
     "esm": false,

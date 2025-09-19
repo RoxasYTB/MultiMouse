@@ -93,7 +93,7 @@ class MultimouseRenderer {
   }
 
   private updateCursorPositionInstant(d: CursorData): void {
-    let cursor = this.cursors.get(d.deviceId);
+    const cursor = this.cursors.get(d.deviceId);
     if (!cursor) {
       return this.createNewCursor(d.deviceId, d);
     }

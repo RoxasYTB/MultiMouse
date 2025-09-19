@@ -348,17 +348,13 @@ class MultimouseApp {
   }
 
   private startMouseInput(): void {
-    try {
-      const success = this.mouseDetector.start();
+    const success = this.mouseDetector.start();
 
-      if (success) {
-        this.centerSystemCursor();
-      }
-    } catch (error) {}
+    if (success) {
+      this.centerSystemCursor();
+    }
 
-    try {
-      this.cursorTypeDetector.start();
-    } catch (error) {}
+    this.cursorTypeDetector.start();
   }
 
   private centerSystemCursor(): void {
@@ -618,9 +614,7 @@ class MultimouseApp {
   }
 
   private saveConfig(): void {
-    try {
-      fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
-    } catch (error) {}
+    fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
   }
 
   public shutdown(): void {
@@ -674,4 +668,5 @@ process.on('uncaughtException', (error: Error) => {
 });
 
 process.on('unhandledRejection', (reason: any) => {});
+
 

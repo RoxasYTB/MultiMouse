@@ -393,7 +393,7 @@ NAN_METHOD(ProcessMessages) {
             Nan::Set(eventObj, Nan::New("flags").ToLocalChecked(), Nan::New<v8::Number>(event.flags));
 
             v8::Local<v8::Value> argv[] = { eventObj };
-            Nan::Call(Nan::GetCurrentContext()->Global(), callback, 1, argv);
+            Nan::Call(callback, Nan::GetCurrentContext()->Global(), 1, argv);
 
         } else if (event.type == "device" && !deviceCallback.IsEmpty()) {
             v8::Local<v8::Function> callback = New(deviceCallback);
@@ -406,7 +406,7 @@ NAN_METHOD(ProcessMessages) {
             Nan::Set(deviceObj, Nan::New("y").ToLocalChecked(), Nan::New<v8::Number>(event.y));
 
             v8::Local<v8::Value> argv[] = { deviceObj };
-            Nan::Call(Nan::GetCurrentContext()->Global(), callback, 1, argv);
+            Nan::Call(callback, Nan::GetCurrentContext()->Global(), 1, argv);
         }
 
         count++;
