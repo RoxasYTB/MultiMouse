@@ -1,20 +1,37 @@
 import { execSync } from 'child_process';
-import fs from 'fs';
+import * as fs from 'fs';
+
+interface ESLintMessage {
+  ruleId: string;
+  message: string;
+  line: number;
+}
+
+interface ESLintResult {
+  filePath: string;
+  messages: ESLintMessage[];
+}
 
 const reportPath = './eslint-report.json';
+
+// Supprimer le rapport précédent s'il existe
 if (fs.existsSync(reportPath)) {
   fs.unlinkSync(reportPath);
 }
 
 try {
-  execSync('npx eslint . --ext .js --ignore-pattern node_modules/* --rule "no-unused-vars: 2" -f json > eslint-report.json 2>nul', { stdio: 'ignore', shell: true });
-} catch {}
+  execSync('npx eslint . --ext .ts --ignore-pattern node_modules/* --rule "no-unused-vars: 2" -f json > eslint-report.json 2>nul', { 
+    stdio: 'ignore'
+  });
+} catch {
+  // Ignorer les erreurs ESLint
+}
 
 if (!fs.existsSync(reportPath)) {
   process.exit(1);
 }
 
-const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+const report: ESLintResult[] = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 
 for (const file of report) {
   if (!file.messages.length) continue;
@@ -26,12 +43,16 @@ for (const file of report) {
     if (msg.ruleId !== 'no-unused-vars') continue;
 
     const lineIndex = msg.line - 1;
-    const varName = msg.message.match(/'(.+?)'/)[1];
+    const varNameMatch = msg.message.match(/'(.+?)'/);
+    if (!varNameMatch) continue;
+
+    const varName = varNameMatch[1];
     let line = code[lineIndex].trim();
 
     let declType = 'variable';
 
-    const funcRegex = new RegExp(`^(?:async\\s+)?function\\s+${varName}\\b`);
+    // Vérifier si c'est une fonction
+    const funcRegex = new RegExp(`^(?:async\\s+)?(?:export\\s+)?(?:function\\s+|const\\s+${varName}\\s*=\\s*(?:async\\s+)?\\(|let\\s+${varName}\\s*=\\s*(?:async\\s+)?\\()`);
     if (funcRegex.test(line)) {
       let depth = 0;
       let endLine = lineIndex;
@@ -56,6 +77,7 @@ for (const file of report) {
       continue;
     }
 
+    // Traiter les variables/constantes
     const regex = new RegExp(`\\b(let|const|var)\\s+${varName}\\s*=[^,;]*[;,]?`);
     const match = code[lineIndex].match(regex);
     if (match) {
@@ -70,6 +92,7 @@ for (const file of report) {
   }
 
   if (changed) {
+    // Supprimer les lignes vides consécutives
     code = code.filter((line, i, arr) => {
       if (line.trim() !== '') return true;
       return i > 0 && arr[i - 1].trim() !== '';
@@ -79,5 +102,5 @@ for (const file of report) {
   }
 }
 
+// Supprimer le rapport
 fs.unlinkSync(reportPath);
-

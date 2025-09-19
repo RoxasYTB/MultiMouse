@@ -1,24 +1,29 @@
-const EventEmitter = require('events');
-const path = require('path');
+import { EventEmitter } from 'events';
+import * as path from 'path';
+import { MouseDevice, MouseMoveData, DeviceChangeData, RawInputModuleInterface } from './types';
 
-class RawInputMouseDetector extends EventEmitter {
+export class RawInputMouseDetector extends EventEmitter {
+  private isActive: boolean = false;
+  private devices: Map<string, MouseDevice> = new Map();
+  private messageProcessInterval: NodeJS.Timeout | null = null;
+  public rawInputModule: RawInputModuleInterface | null = null;
+
   constructor() {
     super();
-    this.isActive = false;
-    this.devices = new Map();
-    this.messageProcessInterval = null;
-    this.rawInputModule = null;
   }
 
-  start() {
+  public start(): boolean {
     if (this.isActive) return true;
 
     try {
-      const modulePath = path.join(__dirname, 'build', 'Release', 'multimouse_raw_input.node');
+      const modulePath = path.join(__dirname, '..', 'build', 'Release', 'multimouse_raw_input.node');
 
-      this.rawInputModule = require(modulePath);
+      this.rawInputModule = require(modulePath) as RawInputModuleInterface;
 
-      this.rawInputModule.setCallbacks(this.handleMouseMove.bind(this), this.handleDeviceChange.bind(this));
+      this.rawInputModule.setCallbacks(
+        this.handleMouseMove.bind(this),
+        this.handleDeviceChange.bind(this)
+      );
 
       const success = this.rawInputModule.startRawInput();
 
@@ -45,7 +50,7 @@ class RawInputMouseDetector extends EventEmitter {
     }
   }
 
-  stop() {
+  public stop(): void {
     if (!this.isActive) return;
 
     this.isActive = false;
@@ -65,8 +70,8 @@ class RawInputMouseDetector extends EventEmitter {
     this.emit('stopped');
   }
 
-  handleMouseMove(moveData) {
-    let actualData;
+  private handleMouseMove(moveData: any): void {
+    let actualData: any;
     if (moveData && moveData.type === 'mouseMove' && moveData.device) {
       actualData = {
         deviceHandle: moveData.device.handle,
@@ -104,7 +109,7 @@ class RawInputMouseDetector extends EventEmitter {
     const deviceKey = `device_${actualData.deviceHandle}`;
 
     if (!this.devices.has(deviceKey)) {
-      const device = {
+      const device: MouseDevice = {
         id: deviceKey,
         handle: actualData.deviceHandle,
         name: cleanDeviceName,
@@ -118,7 +123,7 @@ class RawInputMouseDetector extends EventEmitter {
 
       this.emit('deviceAdded', device);
     } else {
-      const device = this.devices.get(deviceKey);
+      const device = this.devices.get(deviceKey)!;
       device.x = actualData.x || device.x || 0;
       device.y = actualData.y || device.y || 0;
       device.lastSeen = Date.now();
@@ -131,7 +136,7 @@ class RawInputMouseDetector extends EventEmitter {
       return;
     }
 
-    this.emit('mouseMove', {
+    const mouseData: MouseMoveData = {
       deviceId: deviceKey,
       deviceName: cleanDeviceName,
       deviceHandle: actualData.deviceHandle,
@@ -141,20 +146,22 @@ class RawInputMouseDetector extends EventEmitter {
       dy: actualData.dy || 0,
       timestamp: Date.now(),
       isRawInput: true,
-    });
+    };
+
+    this.emit('mouseMove', mouseData);
   }
 
-  handleDeviceChange(deviceData) {
+  private handleDeviceChange(deviceData: DeviceChangeData): void {
     const deviceKey = `device_${deviceData.handle}`;
 
     if (deviceData.action === 'added') {
       if (!this.devices.has(deviceKey)) {
-        const device = {
+        const device: MouseDevice = {
           id: deviceKey,
           handle: deviceData.handle,
           name: deviceData.name,
-          x: deviceData.x,
-          y: deviceData.y,
+          x: deviceData.x || 0,
+          y: deviceData.y || 0,
           connected: true,
           lastSeen: Date.now(),
         };
@@ -166,28 +173,28 @@ class RawInputMouseDetector extends EventEmitter {
     }
   }
 
-  getConnectedDevices() {
+  public getConnectedDevices(): MouseDevice[] {
     return Array.from(this.devices.values()).filter((device) => device.connected);
   }
 
-  getDeviceCount() {
+  public getDeviceCount(): number {
     return this.getConnectedDevices().length;
   }
 
-  getDeviceInfo(deviceId) {
+  public getDeviceInfo(deviceId: string): MouseDevice | null {
     return this.devices.get(deviceId) || null;
   }
 
-  getNativeDevices() {
+  public getNativeDevices(): any[] {
     if (this.rawInputModule) {
       return this.rawInputModule.getDevices();
     }
     return [];
   }
 
-  simulateNewMouse() {
+  public simulateNewMouse(): string {
     const deviceId = `test_mouse_${Date.now()}`;
-    const testDevice = {
+    const testDevice: MouseDevice = {
       id: deviceId,
       handle: 99999 + Math.floor(Math.random() * 1000),
       name: 'Test Mouse',
@@ -203,17 +210,20 @@ class RawInputMouseDetector extends EventEmitter {
     return deviceId;
   }
 
-  removeDevice(deviceId) {
+  public removeDevice(deviceId: string): void {
     if (this.devices.has(deviceId)) {
-      const device = this.devices.get(deviceId);
+      const device = this.devices.get(deviceId)!;
       this.devices.delete(deviceId);
 
       this.emit('deviceRemoved', device);
     }
   }
 
-  simulateTestMovement() {}
+  public cleanupInactiveDevices(): void {
+    // Implementation for cleaning up inactive devices
+  }
+
+  private simulateTestMovement(): void {
+    // Implementation for test movement simulation
+  }
 }
-
-module.exports = RawInputMouseDetector;
-

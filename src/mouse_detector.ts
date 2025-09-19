@@ -1,24 +1,26 @@
 import { exec } from 'child_process';
-import { screen } from 'electron';
-import EventEmitter from 'events';
+import { screen, Display } from 'electron';
+import { EventEmitter } from 'events';
+import { MouseDevice, MouseMoveData } from './types';
 
-class MouseDetector extends EventEmitter {
+export class MouseDetector extends EventEmitter {
+  private devices: Map<string, MouseDevice> = new Map();
+  private lastMouseData: Map<string, { x: number; y: number; time: number }> = new Map();
+  private isActive: boolean = false;
+  private mouseEventListener: any = null;
+  private simulatedDeviceId: number = 1;
+  private trackingInterval: NodeJS.Timeout | null = null;
+  private deviceScanInterval: NodeJS.Timeout | null = null;
+
+  private detectionThreshold: number = 50;
+  private timeThreshold: number = 100;
+
   constructor() {
     super();
-    this.devices = new Map();
-    this.lastMouseData = new Map();
-    this.isActive = false;
-    this.mouseEventListener = null;
-    this.simulatedDeviceId = 1;
-    this.trackingInterval = null;
-    this.deviceScanInterval = null;
-
-    this.detectionThreshold = 50;
-    this.timeThreshold = 100;
   }
 
-  start() {
-    if (this.isActive) return;
+  public start(): boolean {
+    if (this.isActive) return false;
 
     this.isActive = true;
 
@@ -34,7 +36,7 @@ class MouseDetector extends EventEmitter {
     return true;
   }
 
-  stop() {
+  public stop(): void {
     if (!this.isActive) return;
 
     this.isActive = false;
@@ -55,7 +57,7 @@ class MouseDetector extends EventEmitter {
     this.emit('stopped');
   }
 
-  scanForMouseDevices() {
+  private scanForMouseDevices(): void {
     const command = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-WmiObject -Class Win32_PointingDevice | Where-Object {$_.Status -eq 'OK'} | Select-Object Name, DeviceID, Status | ConvertTo-Json -Compress`;
 
     exec(`powershell -Command "${command}"`, { encoding: 'utf8' }, (error, stdout) => {
@@ -71,9 +73,9 @@ class MouseDetector extends EventEmitter {
         const deviceArray = Array.isArray(devices) ? devices : [devices];
 
         const previousDevices = new Set(this.devices.keys());
-        const currentDeviceIds = new Set(deviceArray.map((d) => d.DeviceID));
+        const currentDeviceIds = new Set(deviceArray.map((d: any) => d.DeviceID));
 
-        deviceArray.forEach((device, index) => {
+        deviceArray.forEach((device: any, index: number) => {
           if (device.Status === 'OK') {
             const deviceId = device.DeviceID || `mouse-${index}`;
             let deviceName = device.Name || `Souris #${index + 1}`;
@@ -89,7 +91,7 @@ class MouseDetector extends EventEmitter {
               const y = (index * 150) % primaryDisplay.bounds.height;
               this.updateDevicePosition(deviceId, x, y);
             } else {
-              const existingDevice = this.devices.get(deviceId);
+              const existingDevice = this.devices.get(deviceId)!;
               existingDevice.lastSeen = Date.now();
             }
           }
@@ -113,9 +115,9 @@ class MouseDetector extends EventEmitter {
     });
   }
 
-  addDevice(deviceId, deviceName = 'Souris Inconnue') {
+  private addDevice(deviceId: string, deviceName: string = 'Souris Inconnue'): void {
     if (!this.devices.has(deviceId)) {
-      const device = {
+      const device: MouseDevice = {
         id: deviceId,
         name: deviceName,
         connected: true,
@@ -132,9 +134,9 @@ class MouseDetector extends EventEmitter {
     }
   }
 
-  removeDevice(deviceId) {
+  private removeDevice(deviceId: string): void {
     if (this.devices.has(deviceId)) {
-      const device = this.devices.get(deviceId);
+      const device = this.devices.get(deviceId)!;
       device.connected = false;
 
       this.emit('deviceRemoved', device);
@@ -142,7 +144,7 @@ class MouseDetector extends EventEmitter {
     }
   }
 
-  startMouseTracking() {
+  private startMouseTracking(): void {
     this.trackingInterval = setInterval(() => {
       if (this.isActive) {
         this.updateMousePositions();
@@ -150,11 +152,11 @@ class MouseDetector extends EventEmitter {
     }, 1);
   }
 
-  updateMousePositions() {
+  private updateMousePositions(): void {
     const currentTime = Date.now();
     const cursor = screen.getCursorScreenPoint();
 
-    let primaryDeviceId = null;
+    let primaryDeviceId: string | null = null;
     const devices = Array.from(this.devices.keys());
 
     if (devices.length > 0) {
@@ -166,14 +168,16 @@ class MouseDetector extends EventEmitter {
         if (deviceId === primaryDeviceId) {
           this.updateDevicePosition(deviceId, cursor.x, cursor.y);
 
-          this.emit('mouseMove', {
+          const mouseData: MouseMoveData = {
             deviceId: deviceId,
             deviceName: device.name,
             x: cursor.x,
             y: cursor.y,
             timestamp: currentTime,
             isPrimary: true,
-          });
+          };
+
+          this.emit('mouseMove', mouseData);
         } else {
           const deviceIndex = devices.indexOf(deviceId);
           const displays = screen.getAllDisplays();
@@ -194,22 +198,24 @@ class MouseDetector extends EventEmitter {
 
           this.updateDevicePosition(deviceId, clampedX, clampedY);
 
-          this.emit('mouseMove', {
+          const mouseData: MouseMoveData = {
             deviceId: deviceId,
             deviceName: device.name,
             x: clampedX,
             y: clampedY,
             timestamp: currentTime,
             isPrimary: false,
-          });
+          };
+
+          this.emit('mouseMove', mouseData);
         }
       }
     }
   }
 
-  updateDevicePosition(deviceId, x, y) {
+  private updateDevicePosition(deviceId: string, x: number, y: number): void {
     if (this.devices.has(deviceId)) {
-      const device = this.devices.get(deviceId);
+      const device = this.devices.get(deviceId)!;
       device.x = x;
       device.y = y;
       device.lastSeen = Date.now();
@@ -222,7 +228,7 @@ class MouseDetector extends EventEmitter {
     });
   }
 
-  updateDeviceDisplay() {
+  private updateDeviceDisplay(): void {
     const devices = this.getConnectedDevices();
 
     this.emit('devicesUpdated', {
@@ -231,19 +237,19 @@ class MouseDetector extends EventEmitter {
     });
   }
 
-  getConnectedDevices() {
+  public getConnectedDevices(): MouseDevice[] {
     return Array.from(this.devices.values()).filter((device) => device.connected);
   }
 
-  getDeviceCount() {
+  public getDeviceCount(): number {
     return this.getConnectedDevices().length;
   }
 
-  getDeviceInfo(deviceId) {
+  public getDeviceInfo(deviceId: string): MouseDevice | null {
     return this.devices.get(deviceId) || null;
   }
 
-  simulateNewMouse(name = null) {
+  public simulateNewMouse(name?: string): string {
     const deviceId = `simulated-mouse-${this.simulatedDeviceId++}`;
     const deviceName = name || `Souris Simulée #${this.simulatedDeviceId - 1}`;
 
@@ -259,7 +265,7 @@ class MouseDetector extends EventEmitter {
     return deviceId;
   }
 
-  cleanupInactiveDevices() {
+  public cleanupInactiveDevices(): void {
     const currentTime = Date.now();
     const timeout = 5000;
 
@@ -270,6 +276,3 @@ class MouseDetector extends EventEmitter {
     }
   }
 }
-
-export default MouseDetector;
-

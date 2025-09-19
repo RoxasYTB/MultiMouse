@@ -1,0 +1,272 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CursorTypeDetector = void 0;
+const child_process_1 = require("child_process");
+const path = __importStar(require("path"));
+class CursorTypeDetector {
+    constructor() {
+        this.currentCursorType = 'Arrow';
+        this.isDetecting = false;
+        this.detectionInterval = null;
+        this.callbacks = new Set();
+        this.cursorFileMap = {
+            Arrow: 'aero_arrow.cur',
+            AppStarting: 'aero_working.ani',
+            Wait: 'aero_busy.ani',
+            Hand: 'aero_link.cur',
+            Help: 'aero_helpsel.cur',
+            IBeam: 'aero_ibeam.cur',
+            Cross: 'cross.cur',
+            No: 'aero_unavail.cur',
+            SizeNS: 'aero_ns.cur',
+            SizeWE: 'aero_ew.cur',
+            SizeNWSE: 'aero_nwse.cur',
+            SizeNESW: 'aero_nesw.cur',
+            SizeAll: 'aero_move.cur',
+            UpArrow: 'aero_up.cur',
+            Pen: 'aero_pen.cur',
+            Person: 'aero_person.cur',
+            Pin: 'aero_pin.cur',
+        };
+        this.cursorCssMap = {
+            Arrow: 'default',
+            Hand: 'pointer',
+            IBeam: 'text',
+            Wait: 'wait',
+            AppStarting: 'progress',
+            Help: 'help',
+            Cross: 'crosshair',
+            No: 'not-allowed',
+            SizeNS: 'ns-resize',
+            SizeWE: 'ew-resize',
+            SizeNWSE: 'nwse-resize',
+            SizeNESW: 'nesw-resize',
+            SizeAll: 'move',
+            UpArrow: 'default',
+            Pen: 'default',
+            Person: 'default',
+            Pin: 'default',
+        };
+        this.powershellScript = this.createPowerShellScript();
+    }
+    createPowerShellScript() {
+        return `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public class CursorInfo {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT {
+        public int x;
+        public int y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CURSORINFO {
+        public int cbSize;
+        public int flags;
+        public IntPtr hCursor;
+        public POINT ptScreenPos;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorInfo(ref CURSORINFO pci);
+
+    [DllImport("user32.dll", CharSet=CharSet.Auto)]
+    public static extern IntPtr LoadCursor(IntPtr hInstance, int lpCursorName);
+
+    public const int CURSOR_SHOWING = 0x00000001;
+
+    public const int IDC_ARROW = 32512;
+    public const int IDC_IBEAM = 32513;
+    public const int IDC_WAIT = 32514;
+    public const int IDC_CROSS = 32515;
+    public const int IDC_UPARROW = 32516;
+    public const int IDC_SIZENWSE = 32642;
+    public const int IDC_SIZENESW = 32643;
+    public const int IDC_SIZEWE = 32644;
+    public const int IDC_SIZENS = 32645;
+    public const int IDC_SIZEALL = 32646;
+    public const int IDC_NO = 32648;
+    public const int IDC_HAND = 32649;
+    public const int IDC_APPSTARTING = 32650;
+    public const int IDC_HELP = 32651;
+}
+"@
+
+function Get-CursorType {
+    try {
+        $info = New-Object CursorInfo+CURSORINFO
+        $info.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($info)
+        $result = [CursorInfo]::GetCursorInfo([ref]$info)
+
+        if (-not $result -or $info.flags -ne [CursorInfo]::CURSOR_SHOWING) {
+            return "Hidden"
+        }
+
+        $hCur = $info.hCursor
+
+        $map = @{
+            Arrow      = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_ARROW)
+            IBeam      = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_IBEAM)
+            Wait       = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_WAIT)
+            Cross      = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_CROSS)
+            Hand       = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_HAND)
+            SizeWE     = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_SIZEWE)
+            SizeNS     = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_SIZENS)
+            SizeNWSE   = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_SIZENWSE)
+            SizeNESW   = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_SIZENESW)
+            SizeAll    = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_SIZEALL)
+            Help       = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_HELP)
+            UpArrow    = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_UPARROW)
+            AppStarting = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_APPSTARTING)
+            No         = [CursorInfo]::LoadCursor([IntPtr]::Zero, [CursorInfo]::IDC_NO)
+        }
+
+        foreach ($k in $map.Keys) {
+            if ($hCur -eq $map[$k]) {
+                return $k
+            }
+        }
+        return "Custom"
+    } catch {
+        return "Error"
+    }
+}
+
+# Boucle principale de détection optimisée pour performance maximale
+while ($true) {
+    $cursorType = Get-CursorType
+    Write-Output $cursorType
+    # Réduction de l'intervalle à 1ms pour détection ultra-rapide
+    Start-Sleep -Milliseconds 1
+}
+`;
+    }
+    start() {
+        if (this.isDetecting) {
+            return;
+        }
+        try {
+            this.isDetecting = true;
+            this.powershellProcess = (0, child_process_1.spawn)('powershell.exe', ['-Command', this.powershellScript], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            let buffer = '';
+            this.powershellProcess.stdout?.on('data', (data) => {
+                buffer += data.toString();
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    const output = line.trim();
+                    if (output && output !== this.currentCursorType && output !== '') {
+                        const previousType = this.currentCursorType;
+                        this.currentCursorType = output;
+                        // Notify all callbacks about the cursor type change
+                        for (const callback of this.callbacks) {
+                            try {
+                                callback(output);
+                            }
+                            catch (error) {
+                                // Handle callback errors
+                            }
+                        }
+                    }
+                }
+            });
+            this.powershellProcess.stderr?.on('data', (data) => {
+                // Handle stderr if needed
+            });
+            this.powershellProcess.on('close', (code) => {
+                if (code !== 0) {
+                    // Handle process close
+                }
+                this.isDetecting = false;
+            });
+            this.powershellProcess.on('error', (error) => {
+                this.isDetecting = false;
+            });
+        }
+        catch (error) {
+            this.isDetecting = false;
+        }
+    }
+    stop() {
+        if (!this.isDetecting) {
+            return;
+        }
+        this.isDetecting = false;
+        if (this.powershellProcess) {
+            this.powershellProcess.kill();
+            this.powershellProcess = undefined;
+        }
+        if (this.detectionInterval) {
+            clearInterval(this.detectionInterval);
+            this.detectionInterval = null;
+        }
+    }
+    getCurrentCursorType() {
+        return this.currentCursorType;
+    }
+    getCursorFile(type) {
+        const cursorType = type || this.currentCursorType;
+        return this.cursorFileMap[cursorType] || 'aero_arrow.cur';
+    }
+    getCursorCSS(type) {
+        const cursorType = type || this.currentCursorType;
+        return this.cursorCssMap[cursorType] || 'default';
+    }
+    getCursorFilePath(type) {
+        const cursorFile = this.getCursorFile(type);
+        return path.join('C:', 'Windows', 'Cursors', cursorFile);
+    }
+    onCursorChange(callback) {
+        this.callbacks.add(callback);
+        return () => this.callbacks.delete(callback);
+    }
+    getCursorInfo() {
+        return {
+            type: this.currentCursorType,
+            file: this.getCursorFile(),
+            filePath: this.getCursorFilePath(),
+            cssClass: this.getCursorCSS(),
+            isDetecting: this.isDetecting,
+        };
+    }
+}
+exports.CursorTypeDetector = CursorTypeDetector;
+//# sourceMappingURL=cursor_type_detector.js.map

@@ -1,16 +1,18 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { exec } = require('child_process');
-const chokidar = require('chokidar');
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, Display } from 'electron';
+import * as path from 'path';
+import * as fs from 'fs';
+import { exec } from 'child_process';
+import * as chokidar from 'chokidar';
+
+import { RawInputMouseDetector } from './raw_input_detector';
+import { CursorTypeDetector } from './cursor_type_detector';
+import { AppConfig, MouseMoveData, MouseDevice, CursorData } from './types';
 
 if (process.platform === 'win32') {
   exec('chcp 65001');
 }
-const RawInputMouseDetector = require('./raw_input_detector');
-const CursorTypeDetector = require('./cursor_type_detector');
 
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG: AppConfig = {
   sensitivity: 1.5,
   refreshRate: 1,
   maxCursors: 4,
@@ -20,33 +22,65 @@ const DEFAULT_CONFIG = {
   precisePositioning: true,
 };
 
-class MultimouseApp {
-  constructor() {
-    this.overlayWindow = null;
-    this.config = { ...DEFAULT_CONFIG };
-    this.configPath = path.join(__dirname, 'config.json');
-    this.cursors = new Map();
-    this.isShuttingDown = false;
-    this.lastActiveDevice = null;
+interface CursorState {
+  id: string;
+  deviceName: string;
+  deviceHandle: string | number;
+  x: number;
+  y: number;
+  color: string;
+  lastUpdate: number;
+  isRawInput: boolean;
+  cursorType: string;
+  cursorCSS: string;
+  cursorFile: string;
+  hasMovedOnce: boolean;
+  totalMovement: number;
+}
 
-    this.screenWidth = 800;
-    this.screenHeight = 600;
+class MultimouseApp {
+  private overlayWindow: BrowserWindow | null = null;
+  private config: AppConfig = { ...DEFAULT_CONFIG };
+  private configPath: string;
+  private cursors: Map<string, CursorState> = new Map();
+  private isShuttingDown: boolean = false;
+  private lastActiveDevice: string | null = null;
+
+  private screenWidth: number = 800;
+  private screenHeight: number = 600;
+  private fullScreenWidth?: number;
+  private fullScreenHeight?: number;
+  private centerX: number;
+  private centerY: number;
+  private keepSystemCursorCentered: boolean = true;
+  private systemCursorLocked: boolean = false;
+
+  private lastRenderTime: number = 0;
+  private targetFPS: number = 1000;
+  private frameInterval: number;
+  private renderRequestId: NodeJS.Immediate | null = null;
+  private highPrecisionTimer: NodeJS.Timeout | null = null;
+
+  private lastSystemCursorPos: { x: number; y: number } = { x: 0, y: 0 };
+  private systemCursorUpdatePending: boolean = false;
+
+  private lastLogTime: number = 0;
+  private logThrottle: number = 2000;
+
+  private calibrationRatioX: number = 1.0;
+  private calibrationRatioY: number = 1.0;
+  private correctionFactorX: number = 1.0;
+  private correctionFactorY: number = 1.0;
+
+  private mouseDetector: RawInputMouseDetector;
+  private cursorTypeDetector: CursorTypeDetector;
+  private fileWatcher?: chokidar.FSWatcher;
+
+  constructor() {
+    this.configPath = path.join(__dirname, '..', 'config.json');
     this.centerX = this.screenWidth / 2;
     this.centerY = this.screenHeight / 2;
-    this.keepSystemCursorCentered = true;
-    this.systemCursorLocked = false;
-
-    this.lastRenderTime = 0;
-    this.targetFPS = 1000;
     this.frameInterval = 1000 / this.targetFPS;
-    this.renderRequestId = null;
-    this.highPrecisionTimer = null;
-
-    this.lastSystemCursorPos = { x: 0, y: 0 };
-    this.systemCursorUpdatePending = false;
-
-    this.lastLogTime = 0;
-    this.logThrottle = 2000;
 
     this.mouseDetector = new RawInputMouseDetector();
     this.cursorTypeDetector = new CursorTypeDetector();
@@ -59,14 +93,14 @@ class MultimouseApp {
     this.initHighPerformanceLoop();
   }
 
-  initHighPerformanceLoop() {
+  private initHighPerformanceLoop(): void {
     if (this.config.highPerformanceMode) {
       this.startHighPrecisionRendering();
     }
   }
 
-  startHighPrecisionRendering() {
-    const render = () => {
+  private startHighPrecisionRendering(): void {
+    const render = (): void => {
       const now = performance.now();
       if (now - this.lastRenderTime >= this.frameInterval) {
         this.lastRenderTime = now;
@@ -81,17 +115,16 @@ class MultimouseApp {
     this.renderRequestId = setImmediate(render);
   }
 
-  updateCursorPositionsHighPrecision() {
+  private updateCursorPositionsHighPrecision(): void {
     if (this.lastActiveDevice && this.cursors.has(this.lastActiveDevice)) {
-      const cursor = this.cursors.get(this.lastActiveDevice);
-
+      const cursor = this.cursors.get(this.lastActiveDevice)!;
       this.syncSystemCursorToHTML(cursor);
     }
 
     this.updateOverlayInstantly();
   }
 
-  syncSystemCursorToHTML(cursor) {
+  private syncSystemCursorToHTML(cursor: CursorState): void {
     if (!this.systemCursorUpdatePending) {
       this.systemCursorUpdatePending = true;
 
@@ -112,18 +145,15 @@ class MultimouseApp {
     }
   }
 
-  updateOverlayInstantly() {
+  private updateOverlayInstantly(): void {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       const activeCursors = Array.from(this.cursors.values())
         .filter((c) => c.hasMovedOnce)
-        .map((c) => ({
+        .map((c): CursorData => ({
           deviceId: c.id,
-          deviceName: c.deviceName,
-          deviceHandle: c.deviceHandle,
           x: c.x,
           y: c.y,
           color: c.color,
-          isRawInput: c.isRawInput,
           cursorType: c.cursorType,
           cursorCSS: c.cursorCSS,
           cursorFile: c.cursorFile,
@@ -132,7 +162,6 @@ class MultimouseApp {
 
       const now = Date.now();
       if (activeCursors.length > 0 && now - this.lastLogTime > this.logThrottle) {
-        activeCursors.forEach((c) => {});
         this.lastLogTime = now;
       }
 
@@ -144,36 +173,36 @@ class MultimouseApp {
     }
   }
 
-  setupFileWatcher() {
-    const filesToWatch = [path.join(__dirname, 'overlay.css'), path.join(__dirname, 'overlay.html'), path.join(__dirname, 'renderer.js')];
+  private setupFileWatcher(): void {
+    const filesToWatch = [
+      path.join(__dirname, '..', 'overlay.css'),
+      path.join(__dirname, '..', 'overlay.html'),
+      path.join(__dirname, 'renderer.js')
+    ];
 
     this.fileWatcher = chokidar.watch(filesToWatch, {
       ignored: /(^|[\/\\])\../,
       persistent: true,
     });
 
-    this.fileWatcher.on('change', (filePath) => {
+    this.fileWatcher.on('change', (filePath: string) => {
       if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        if (filePath.endsWith('.css')) {
-          this.overlayWindow.webContents.reload();
-        } else {
-          this.overlayWindow.webContents.reload();
-        }
+        this.overlayWindow.webContents.reload();
       }
     });
   }
 
-  setupMouseEvents() {
+  private setupMouseEvents(): void {
     this.mouseDetector.on('deviceAdded', () => {
       this.updateDeviceDisplay();
     });
 
-    this.mouseDetector.on('deviceRemoved', (device) => {
+    this.mouseDetector.on('deviceRemoved', (device: MouseDevice) => {
       this.removeCursor(device.id);
       this.updateDeviceDisplay();
     });
 
-    this.mouseDetector.on('mouseMove', (data) => {
+    this.mouseDetector.on('mouseMove', (data: MouseMoveData) => {
       this.handleMouseMove(data);
     });
 
@@ -181,10 +210,10 @@ class MultimouseApp {
     this.mouseDetector.on('stopped', () => {});
   }
 
-  setupCursorTypeEvents() {
-    this.cursorTypeDetector.onCursorChange((newType) => {
+  private setupCursorTypeEvents(): void {
+    this.cursorTypeDetector.onCursorChange((newType: string) => {
       if (this.lastActiveDevice && this.cursors.has(this.lastActiveDevice)) {
-        const cursor = this.cursors.get(this.lastActiveDevice);
+        const cursor = this.cursors.get(this.lastActiveDevice)!;
         cursor.cursorType = newType;
         cursor.cursorCSS = this.cursorTypeDetector.getCursorCSS(newType);
         cursor.cursorFile = this.cursorTypeDetector.getCursorFile(newType);
@@ -202,9 +231,9 @@ class MultimouseApp {
     });
   }
 
-  setupAppEvents() {
+  private setupAppEvents(): void {
     app.whenReady().then(() => {
-      const primaryDisplay = screen.getPrimaryDisplay();
+      const primaryDisplay: Display = screen.getPrimaryDisplay();
       this.screenWidth = primaryDisplay.size.width;
       this.screenHeight = primaryDisplay.size.height;
       this.fullScreenWidth = primaryDisplay.size.width;
@@ -241,8 +270,8 @@ class MultimouseApp {
     });
   }
 
-  updateScreenDimensions() {
-    const primaryDisplay = screen.getPrimaryDisplay();
+  private updateScreenDimensions(): void {
+    const primaryDisplay: Display = screen.getPrimaryDisplay();
     const newWidth = primaryDisplay.size.width;
     const newHeight = primaryDisplay.size.height;
 
@@ -270,9 +299,9 @@ class MultimouseApp {
     }
   }
 
-  async calibrateCoordinateMapping() {
+  private async calibrateCoordinateMapping(): Promise<void> {
     try {
-      let currentSystemPos = null;
+      let currentSystemPos: { x: number; y: number } | null = null;
       if (this.mouseDetector.rawInputModule?.getSystemCursorPos) {
         currentSystemPos = this.mouseDetector.rawInputModule.getSystemCursorPos();
       } else {
@@ -298,50 +327,54 @@ class MultimouseApp {
     }
   }
 
-  convertHTMLToSystemCoordinates(htmlX, htmlY) {
+  private convertHTMLToSystemCoordinates(htmlX: number, htmlY: number): { x: number; y: number } {
     return {
       x: htmlX * 1.25,
       y: htmlY * 1.25,
     };
   }
 
-  analyzeCoordinateAccuracy(htmlPos, systemPos) {
+  private analyzeCoordinateAccuracy(htmlPos: { x: number; y: number }, systemPos: { x: number; y: number }): void {
     if (!htmlPos || !systemPos) return;
     const deltaX = Math.abs(systemPos.x - htmlPos.x);
     const deltaY = Math.abs(systemPos.y - htmlPos.y);
     if (deltaX > 2 || deltaY > 2) {
+      // Logging could be added here
     }
   }
 
-  convertSystemToHTMLCoordinates(systemX, systemY) {
+  private convertSystemToHTMLCoordinates(systemX: number, systemY: number): { x: number; y: number } {
     return {
       x: systemX,
       y: systemY,
     };
   }
 
-  startMouseInput() {
+  private startMouseInput(): void {
     try {
       const success = this.mouseDetector.start();
 
       if (success) {
         this.centerSystemCursor();
-      } else {
       }
-    } catch (error) {}
+    } catch (error) {
+      // Error handling
+    }
 
     try {
       this.cursorTypeDetector.start();
-    } catch (error) {}
+    } catch (error) {
+      // Error handling
+    }
   }
 
-  centerSystemCursor() {
+  private centerSystemCursor(): void {
     if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
       this.mouseDetector.rawInputModule.setSystemCursorPos(this.centerX, this.centerY);
     }
   }
 
-  handleMouseMove(mouseData) {
+  private handleMouseMove(mouseData: MouseMoveData): void {
     const cursorId = mouseData.deviceId;
     const deviceName = mouseData.deviceName || 'Device Inconnu';
     const isRawInput = mouseData.isRawInput || false;
@@ -406,7 +439,7 @@ class MultimouseApp {
     this.sendInstantCursorUpdate(cursor);
   }
 
-  sendInstantCursorUpdate(cursor) {
+  private sendInstantCursorUpdate(cursor: CursorState): void {
     if (cursor.hasMovedOnce && this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.webContents.send('cursor-position-update', {
         deviceId: cursor.id,
@@ -421,99 +454,7 @@ class MultimouseApp {
     }
   }
 
-  maintainSystemCursorCenter() {
-    if (!this.keepSystemCursorCentered) return;
-
-    try {
-      if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
-        let currentPos = null;
-        try {
-          if (this.mouseDetector.rawInputModule.getSystemCursorPos) {
-            currentPos = this.mouseDetector.rawInputModule.getSystemCursorPos();
-          } else {
-            currentPos = screen.getCursorScreenPoint();
-          }
-        } catch (err) {
-          try {
-            currentPos = screen.getCursorScreenPoint();
-          } catch (err2) {
-            return;
-          }
-        }
-
-        if (currentPos) {
-          const centerDistanceX = Math.abs(currentPos.x - this.centerX);
-          const centerDistanceY = Math.abs(currentPos.y - this.centerY);
-          const threshold = 50;
-
-          if (centerDistanceX > threshold || centerDistanceY > threshold) {
-            this.mouseDetector.rawInputModule.setSystemCursorPos(this.centerX, this.centerY);
-          }
-        }
-      }
-    } catch (error) {}
-  }
-
-  moveSystemCursorToLastActive() {
-    if (!this.lastActiveDevice || !this.cursors.has(this.lastActiveDevice)) {
-      return;
-    }
-
-    const cursor = this.cursors.get(this.lastActiveDevice);
-    const systemCoords = this.convertHTMLToSystemCoordinates(cursor.x, cursor.y);
-    const targetX = Math.round(systemCoords.x);
-    const targetY = Math.round(systemCoords.y);
-
-    try {
-      if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
-        let realPosBefore = null;
-        try {
-          if (this.mouseDetector.rawInputModule.getSystemCursorPos) {
-            realPosBefore = this.mouseDetector.rawInputModule.getSystemCursorPos();
-          }
-        } catch (err) {}
-
-        if (!realPosBefore) {
-          try {
-            realPosBefore = screen.getCursorScreenPoint();
-          } catch (err) {}
-        }
-
-        let realPosBeforeHTML = null;
-        if (realPosBefore) {
-          realPosBeforeHTML = this.convertSystemToHTMLCoordinates(realPosBefore.x, realPosBefore.y);
-        }
-
-        const success = this.mouseDetector.rawInputModule.setSystemCursorPos(targetX, targetY);
-        if (success) {
-          let realPosAfter = null;
-          try {
-            if (this.mouseDetector.rawInputModule.getSystemCursorPos) {
-              realPosAfter = this.mouseDetector.rawInputModule.getSystemCursorPos();
-            }
-          } catch (err) {}
-
-          if (!realPosAfter) {
-            try {
-              realPosAfter = screen.getCursorScreenPoint();
-            } catch (err) {}
-          }
-
-          if (realPosAfter) {
-            this.analyzeCoordinateAccuracy({ x: targetX, y: targetY }, realPosAfter);
-
-            if (Math.abs(realPosAfter.x - targetX) > 5 || Math.abs(realPosAfter.y - targetY) > 5) {
-              const htmlPos = this.convertSystemToHTMLCoordinates(realPosAfter.x, realPosAfter.y);
-              cursor.x = htmlPos.x;
-              cursor.y = htmlPos.y;
-            }
-          }
-        }
-      }
-    } catch (error) {}
-  }
-
-  getStableColorIndex(deviceId) {
+  private getStableColorIndex(deviceId: string): number {
     let hash = 0;
     for (let i = 0; i < deviceId.length; i++) {
       const char = deviceId.charCodeAt(i);
@@ -524,7 +465,7 @@ class MultimouseApp {
     return Math.abs(hash) % this.config.cursorColors.length;
   }
 
-  removeCursor(deviceId) {
+  private removeCursor(deviceId: string): void {
     if (this.cursors.has(deviceId)) {
       this.cursors.delete(deviceId);
 
@@ -541,7 +482,7 @@ class MultimouseApp {
     }
   }
 
-  updateDeviceDisplay() {
+  private updateDeviceDisplay(): void {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.webContents.send('devices-updated', {
         count: this.mouseDetector.getDeviceCount(),
@@ -550,7 +491,7 @@ class MultimouseApp {
     }
   }
 
-  setupGlobalShortcuts() {
+  private setupGlobalShortcuts(): void {
     globalShortcut.register('CommandOrControl+Shift+=', () => {
       this.increaseSensitivity();
     });
@@ -574,21 +515,21 @@ class MultimouseApp {
     });
   }
 
-  toggleCenterMode() {
+  private toggleCenterMode(): void {
     this.keepSystemCursorCentered = !this.keepSystemCursorCentered;
   }
 
-  addTestMouse() {
-    clearTestMice();
+  private addTestMouse(): void {
+    this.clearTestMice();
   }
 
-  showDeviceInfo() {}
+  private showDeviceInfo(): void {}
 
-  clearTestMice() {
+  private clearTestMice(): void {
     this.mouseDetector.cleanupInactiveDevices();
   }
 
-  createOverlayWindow() {
+  private createOverlayWindow(): void {
     this.overlayWindow = new BrowserWindow({
       fullscreen: true,
       frame: false,
@@ -600,15 +541,14 @@ class MultimouseApp {
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
-        enableRemoteModule: false,
       },
     });
 
-    this.overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
+    this.overlayWindow.loadFile(path.join(__dirname, '..', 'overlay.html'));
 
     this.overlayWindow.once('ready-to-show', () => {
-      this.overlayWindow.show();
-      this.overlayWindow.setIgnoreMouseEvents(true);
+      this.overlayWindow!.show();
+      this.overlayWindow!.setIgnoreMouseEvents(true);
     });
 
     this.overlayWindow.on('closed', () => {
@@ -620,7 +560,7 @@ class MultimouseApp {
     }
   }
 
-  setupIPC() {
+  private setupIPC(): void {
     ipcMain.handle('get-config', () => {
       return this.config;
     });
@@ -629,7 +569,7 @@ class MultimouseApp {
       return this.mouseDetector.getDeviceCount();
     });
 
-    ipcMain.on('mouse-move', (event, mouseData) => {
+    ipcMain.on('mouse-move', (event, mouseData: MouseMoveData) => {
       this.handleMouseMove(mouseData);
     });
 
@@ -649,28 +589,28 @@ class MultimouseApp {
     });
   }
 
-  increaseSensitivity() {
+  private increaseSensitivity(): void {
     this.config.sensitivity = Math.min(5.0, this.config.sensitivity + 0.1);
     this.sendConfigUpdate();
   }
 
-  decreaseSensitivity() {
+  private decreaseSensitivity(): void {
     this.config.sensitivity = Math.max(0.1, this.config.sensitivity - 0.1);
     this.sendConfigUpdate();
   }
 
-  resetSensitivity() {
+  private resetSensitivity(): void {
     this.config.sensitivity = DEFAULT_CONFIG.sensitivity;
     this.sendConfigUpdate();
   }
 
-  sendConfigUpdate() {
+  private sendConfigUpdate(): void {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.webContents.send('config-updated', this.config);
     }
   }
 
-  loadConfig() {
+  private loadConfig(): void {
     try {
       if (fs.existsSync(this.configPath)) {
         const configData = fs.readFileSync(this.configPath, 'utf8');
@@ -684,13 +624,15 @@ class MultimouseApp {
     }
   }
 
-  saveConfig() {
+  private saveConfig(): void {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
-    } catch (error) {}
+    } catch (error) {
+      // Error handling
+    }
   }
 
-  shutdown() {
+  public shutdown(): void {
     if (this.isShuttingDown) return;
 
     this.isShuttingDown = true;
@@ -720,9 +662,9 @@ class MultimouseApp {
     app.quit();
   }
 
-  simulateCursorMovement(deviceId, dx, dy) {
+  private simulateCursorMovement(deviceId: string, dx: number, dy: number): void {
     if (this.cursors.has(deviceId)) {
-      const cursor = this.cursors.get(deviceId);
+      const cursor = this.cursors.get(deviceId)!;
       const newX = cursor.x + dx;
       const newY = cursor.y + dy;
 
@@ -736,9 +678,10 @@ class MultimouseApp {
 
 const multimouseApp = new MultimouseApp();
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', (error: Error) => {
   multimouseApp.shutdown();
 });
 
-process.on('unhandledRejection', (reason) => {});
-
+process.on('unhandledRejection', (reason: any) => {
+  // Error handling
+});

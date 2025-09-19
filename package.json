@@ -2,14 +2,17 @@
   "name": "multimouse-electron",
   "version": "1.0.0",
   "description": "Application Multimouse stable avec Electron.js",
-  "main": "main.js",
+  "main": "dist/main.js",
   "scripts": {
-    "start": "electron .",
+    "build": "tsc && node-gyp rebuild",
+    "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
-    "build": "node-gyp rebuild",
+    "compile": "tsc",
     "rebuild": "electron-rebuild",
     "install-deps": "npm install",
-    "postinstall": "node-gyp rebuild"
+    "postinstall": "node-gyp rebuild",
+    "clean": "rimraf dist",
+    "watch": "tsc --watch"
   },
   "keywords": [
     "multimouse",
@@ -27,21 +30,25 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
+    "@types/electron": "^1.4.38",
+    "@types/node": "^24.5.2",
     "chokidar": "^4.0.3",
     "electron-builder": "^24.0.0",
     "electron-rebuild": "^3.2.9",
     "node-addon-api": "^8.5.0",
-    "node-gyp": "^10.0.0"
+    "node-gyp": "^10.0.0",
+    "rimraf": "^5.0.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   },
   "build": {
     "appId": "com.yohan.multimouse",
     "productName": "Multimouse",
     "directories": {
-      "output": "dist"
+      "output": "dist-app"
     },
     "files": [
-      "main.js",
-      "renderer.js",
+      "dist/**/*",
       "overlay.html",
       "overlay.css",
       "config.json",

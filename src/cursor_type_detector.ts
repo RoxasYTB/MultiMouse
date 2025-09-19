@@ -1,57 +1,59 @@
-const { spawn } = require('child_process');
-const path = require('path');
+import { spawn, ChildProcess } from 'child_process';
+import * as path from 'path';
 
-class CursorTypeDetector {
+export class CursorTypeDetector {
+  private currentCursorType: string = 'Arrow';
+  private isDetecting: boolean = false;
+  private detectionInterval: NodeJS.Timeout | null = null;
+  private callbacks: Set<(newType: string) => void> = new Set();
+  private powershellProcess?: ChildProcess;
+  private powershellScript: string;
+
+  private readonly cursorFileMap: Record<string, string> = {
+    Arrow: 'aero_arrow.cur',
+    AppStarting: 'aero_working.ani',
+    Wait: 'aero_busy.ani',
+    Hand: 'aero_link.cur',
+    Help: 'aero_helpsel.cur',
+    IBeam: 'aero_ibeam.cur',
+    Cross: 'cross.cur',
+    No: 'aero_unavail.cur',
+    SizeNS: 'aero_ns.cur',
+    SizeWE: 'aero_ew.cur',
+    SizeNWSE: 'aero_nwse.cur',
+    SizeNESW: 'aero_nesw.cur',
+    SizeAll: 'aero_move.cur',
+    UpArrow: 'aero_up.cur',
+    Pen: 'aero_pen.cur',
+    Person: 'aero_person.cur',
+    Pin: 'aero_pin.cur',
+  };
+
+  private readonly cursorCssMap: Record<string, string> = {
+    Arrow: 'default',
+    Hand: 'pointer',
+    IBeam: 'text',
+    Wait: 'wait',
+    AppStarting: 'progress',
+    Help: 'help',
+    Cross: 'crosshair',
+    No: 'not-allowed',
+    SizeNS: 'ns-resize',
+    SizeWE: 'ew-resize',
+    SizeNWSE: 'nwse-resize',
+    SizeNESW: 'nesw-resize',
+    SizeAll: 'move',
+    UpArrow: 'default',
+    Pen: 'default',
+    Person: 'default',
+    Pin: 'default',
+  };
+
   constructor() {
-    this.currentCursorType = 'Arrow';
-    this.isDetecting = false;
-    this.detectionInterval = null;
-    this.callbacks = new Set();
-
-    this.cursorFileMap = {
-      Arrow: 'aero_arrow.cur',
-      AppStarting: 'aero_working.ani',
-      Wait: 'aero_busy.ani',
-      Hand: 'aero_link.cur',
-      Help: 'aero_helpsel.cur',
-      IBeam: 'aero_ibeam.cur',
-      Cross: 'cross.cur',
-      No: 'aero_unavail.cur',
-      SizeNS: 'aero_ns.cur',
-      SizeWE: 'aero_ew.cur',
-      SizeNWSE: 'aero_nwse.cur',
-      SizeNESW: 'aero_nesw.cur',
-      SizeAll: 'aero_move.cur',
-      UpArrow: 'aero_up.cur',
-      Pen: 'aero_pen.cur',
-      Person: 'aero_person.cur',
-      Pin: 'aero_pin.cur',
-    };
-
-    this.cursorCssMap = {
-      Arrow: 'default',
-      Hand: 'pointer',
-      IBeam: 'text',
-      Wait: 'wait',
-      AppStarting: 'progress',
-      Help: 'help',
-      Cross: 'crosshair',
-      No: 'not-allowed',
-      SizeNS: 'ns-resize',
-      SizeWE: 'ew-resize',
-      SizeNWSE: 'nwse-resize',
-      SizeNESW: 'nesw-resize',
-      SizeAll: 'move',
-      UpArrow: 'default',
-      Pen: 'default',
-      Person: 'default',
-      Pin: 'default',
-    };
-
     this.powershellScript = this.createPowerShellScript();
   }
 
-  createPowerShellScript() {
+  private createPowerShellScript(): string {
     return `
 Add-Type @"
 using System;
@@ -147,7 +149,7 @@ while ($true) {
 `;
   }
 
-  start() {
+  public start(): void {
     if (this.isDetecting) {
       return;
     }
@@ -160,10 +162,10 @@ while ($true) {
       });
 
       let buffer = '';
-      this.powershellProcess.stdout.on('data', (data) => {
+      this.powershellProcess.stdout?.on('data', (data: Buffer) => {
         buffer += data.toString();
         const lines = buffer.split('\n');
-        buffer = lines.pop();
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           const output = line.trim();
@@ -171,24 +173,30 @@ while ($true) {
             const previousType = this.currentCursorType;
             this.currentCursorType = output;
 
-            this.callbacks.forEach((callback) => {
+            // Notify all callbacks about the cursor type change
+            for (const callback of this.callbacks) {
               try {
-                callback(this.currentCursorType, previousType);
-              } catch (error) {}
-            });
+                callback(output);
+              } catch (error) {
+                // Handle callback errors
+              }
+            }
           }
         }
       });
 
-      this.powershellProcess.stderr.on('data', (data) => {});
+      this.powershellProcess.stderr?.on('data', (data: Buffer) => {
+        // Handle stderr if needed
+      });
 
-      this.powershellProcess.on('close', (code) => {
+      this.powershellProcess.on('close', (code: number | null) => {
         if (code !== 0) {
+          // Handle process close
         }
         this.isDetecting = false;
       });
 
-      this.powershellProcess.on('error', (error) => {
+      this.powershellProcess.on('error', (error: Error) => {
         this.isDetecting = false;
       });
     } catch (error) {
@@ -196,7 +204,7 @@ while ($true) {
     }
   }
 
-  stop() {
+  public stop(): void {
     if (!this.isDetecting) {
       return;
     }
@@ -205,7 +213,7 @@ while ($true) {
 
     if (this.powershellProcess) {
       this.powershellProcess.kill();
-      this.powershellProcess = null;
+      this.powershellProcess = undefined;
     }
 
     if (this.detectionInterval) {
@@ -214,31 +222,37 @@ while ($true) {
     }
   }
 
-  getCurrentCursorType() {
+  public getCurrentCursorType(): string {
     return this.currentCursorType;
   }
 
-  getCursorFile(type = null) {
+  public getCursorFile(type?: string): string {
     const cursorType = type || this.currentCursorType;
     return this.cursorFileMap[cursorType] || 'aero_arrow.cur';
   }
 
-  getCursorCSS(type = null) {
+  public getCursorCSS(type?: string): string {
     const cursorType = type || this.currentCursorType;
     return this.cursorCssMap[cursorType] || 'default';
   }
 
-  getCursorFilePath(type = null) {
+  public getCursorFilePath(type?: string): string {
     const cursorFile = this.getCursorFile(type);
     return path.join('C:', 'Windows', 'Cursors', cursorFile);
   }
 
-  onCursorChange(callback) {
+  public onCursorChange(callback: (newType: string) => void): () => void {
     this.callbacks.add(callback);
     return () => this.callbacks.delete(callback);
   }
 
-  getCursorInfo() {
+  public getCursorInfo(): {
+    type: string;
+    file: string;
+    filePath: string;
+    cssClass: string;
+    isDetecting: boolean;
+  } {
     return {
       type: this.currentCursorType,
       file: this.getCursorFile(),
@@ -248,6 +262,3 @@ while ($true) {
     };
   }
 }
-
-module.exports = CursorTypeDetector;
-
