@@ -170,19 +170,16 @@ while ($true) {
         for (const line of lines) {
           const output = line.trim();
           if (output && output !== this.currentCursorType && output !== '') {
-            const previousType = this.currentCursorType;
             this.currentCursorType = output;
 
             for (const callback of this.callbacks) {
-             
-                callback(output);
-
+              callback(output);
             }
           }
         }
       });
 
-      this.powershellProcess.stderr?.on('data', (data: Buffer) => {});
+      this.powershellProcess.stderr?.on('data', () => {});
 
       this.powershellProcess.on('close', (code: number | null) => {
         if (code !== 0) {
@@ -190,7 +187,7 @@ while ($true) {
         this.isDetecting = false;
       });
 
-      this.powershellProcess.on('error', (error: Error) => {
+      this.powershellProcess.on('error', () => {
         this.isDetecting = false;
       });
     } catch (error) {
@@ -256,5 +253,4 @@ while ($true) {
     };
   }
 }
-
 
