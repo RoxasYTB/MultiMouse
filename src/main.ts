@@ -641,6 +641,10 @@ class MultimouseApp {
 
       console.log('Overlay window visible:', !this.overlayWindow!.isDestroyed());
       console.log('Devices connectes:', this.mouseDetector.getDeviceCount());
+
+      setTimeout(() => {
+        this.sendExistingCursorsToRenderer();
+      }, 1000);
     });
 
     this.overlayWindow.on('closed', () => {
@@ -659,6 +663,32 @@ class MultimouseApp {
     }
   }
 
+  private sendExistingCursorsToRenderer(): void {
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) return;
+
+    console.log('=== ENVOI CURSEURS EXISTANTS AU RENDERER ===');
+    const existingCursors = Array.from(this.cursors.values()).map((cursor) => ({
+      deviceId: cursor.id,
+      x: cursor.x,
+      y: cursor.y,
+      color: cursor.color,
+      cursorType: cursor.cursorType,
+      cursorCSS: cursor.cursorCSS,
+      cursorFile: cursor.cursorFile,
+      isVisible: true,
+    }));
+
+    console.log('Curseurs à envoyer:', existingCursors);
+
+    if (existingCursors.length > 0) {
+      this.overlayWindow.webContents.send('cursors-instant-update', {
+        cursors: existingCursors,
+        lastActiveDevice: this.lastActiveDevice,
+        timestamp: performance.now(),
+      });
+    }
+  }
+
   private setupIPC(): void {
     ipcMain.handle('get-config', () => {
       return this.config;
@@ -670,6 +700,11 @@ class MultimouseApp {
 
     ipcMain.on('mouse-move', (_event, mouseData: MouseMoveData) => {
       this.handleMouseMove(mouseData);
+    });
+
+    ipcMain.on('renderer-ready', () => {
+      console.log("=== RENDERER SIGNALE QU'IL EST PRET ===");
+      this.sendExistingCursorsToRenderer();
     });
 
     ipcMain.handle('increase-sensitivity', () => {

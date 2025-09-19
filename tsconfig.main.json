@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "ES2020",
+    "outDir": "./dist/main"
+  },
+  "include": ["src/main.ts", "src/types.ts", "src/mouse_*.ts", "src/cursor_*.ts", "src/raw_*.ts", "src/declarations.d.ts"],
+  "exclude": ["src/renderer.ts"]
+}

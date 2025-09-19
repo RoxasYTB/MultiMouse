@@ -11,6 +11,12 @@
 <body>
 
     <div id="overlay-container">
+        <div
+            style="color:white; position: absolute; top: 10px; left: 10px; z-index: 9999; background: rgba(0,0,0,0.8); padding: 10px;">
+            <div>HTML Chargé: OK</div>
+            <div id="renderer-status">Renderer: En attente...</div>
+            <div id="cursors-debug">Curseurs: 0</div>
+        </div>
         <div id="cursors-container"></div>
         <div id="info-panel" class="info-panel" style="display: none;">
             <div class="info-item">
@@ -40,6 +46,10 @@
             <div id="debug-info"></div>
         </div>
     </div>
+    <script>
+        const { require } = require('electron');
+        window.require = require;
+    </script>
     <script src="dist/renderer.js"></script>
 </body>
 

@@ -15,10 +15,14 @@ class MultimouseRenderer {
   private highPrecisionMode: boolean = true;
 
   constructor() {
+    console.log('=== RENDERER: Initialisation ===');
     this.cursorsContainer = document.getElementById('cursors-container')!;
     this.sensitivityValue = document.getElementById('sensitivity-value')!;
     this.activeCursors = document.getElementById('active-cursors')!;
     this.deviceCount = document.getElementById('device-count')!;
+
+    const statusEl = document.getElementById('renderer-status');
+    if (statusEl) statusEl.textContent = 'Renderer: Chargé!';
 
     this.init();
   }
@@ -44,11 +48,17 @@ class MultimouseRenderer {
       };
 
       for (const [evt, fn] of Object.entries(handlers)) {
-        ipcRenderer.on(evt, (event, data) => fn(data));
+        ipcRenderer.on(evt, (_event, data) => {
+          console.log(`=== RENDERER: Événement reçu: ${evt} ===`, data);
+          fn(data);
+        });
       }
 
       document.addEventListener('pointermove', (e: PointerEvent) => this.handlePointerMove(e));
       this.startHighPrecisionLoop();
+
+      console.log('=== RENDERER: Signalement au main process ===');
+      ipcRenderer.send('renderer-ready');
     } catch (err) {
       console.error('Error initializing renderer:', err);
     }
@@ -185,19 +195,27 @@ class MultimouseRenderer {
   }
 
   private createNewCursor(id: string, d: CursorData): void {
+    console.log('=== RENDERER: Création curseur ===', { id, x: d.x, y: d.y });
+
     const el = document.createElement('div');
     el.className = `cursor cursor-${this.cursors.size % 8}`;
     el.id = `cursor-${id}`;
+
     Object.assign(el.style, {
+      position: 'absolute',
+      width: '30px',
+      height: '30px',
+      backgroundColor: 'red',
+      border: '3px solid white',
+      borderRadius: '50%',
+      zIndex: '9999',
+      opacity: '1',
+      display: 'block',
+      visibility: 'visible',
+      pointerEvents: 'none',
       willChange: 'transform, visibility',
       backfaceVisibility: 'hidden',
       perspective: '1000px',
-      visibility: 'visible',
-      display: 'block',
-      opacity: '1',
-      position: 'absolute',
-      zIndex: '1000',
-      pointerEvents: 'none',
     });
 
     if (d.color) {
@@ -215,6 +233,8 @@ class MultimouseRenderer {
     el.style.transform = `translate3d(${d.x || 400}px, ${d.y || 300}px, 0)`;
     this.cursorsContainer.appendChild(el);
 
+    console.log('=== RENDERER: Curseur ajouté au DOM ===', el);
+
     const cursorInfo: CursorInfo = {
       element: el,
       data: d,
@@ -225,6 +245,9 @@ class MultimouseRenderer {
 
     this.cursors.set(id, cursorInfo);
     this.lastPositions.set(id, { x: d.x || 400, y: d.y || 300 });
+
+    const debugEl = document.getElementById('cursors-debug');
+    if (debugEl) debugEl.textContent = `Curseurs: ${this.cursors.size}`;
   }
 
   private updateExistingCursor(id: string, d: CursorData): void {
@@ -267,13 +290,6 @@ class MultimouseRenderer {
     ipcRenderer.invoke('get-device-count').then((c: number) => {
       this.deviceCount.textContent = c.toString();
     });
-  }
-
-  private addCursorTrail(id: string, x: number, y: number): void {
-    const t = Object.assign(document.createElement('div'), { className: 'cursor-trail' });
-    Object.assign(t.style, { left: `${x}px`, top: `${y}px` });
-    this.cursorsContainer.appendChild(t);
-    setTimeout(() => t.remove(), 1000);
   }
 
   private handlePointerMove(e: PointerEvent): void {

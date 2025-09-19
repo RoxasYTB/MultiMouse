@@ -7,13 +7,10 @@ export class MouseDetector extends EventEmitter {
   private devices: Map<string, MouseDevice> = new Map();
   private lastMouseData: Map<string, { x: number; y: number; time: number }> = new Map();
   private isActive: boolean = false;
-  private mouseEventListener: any = null;
+
   private simulatedDeviceId: number = 1;
   private trackingInterval: NodeJS.Timeout | null = null;
   private deviceScanInterval: NodeJS.Timeout | null = null;
-
-  private detectionThreshold: number = 50;
-  private timeThreshold: number = 100;
 
   constructor() {
     super();
@@ -276,5 +273,4 @@ export class MouseDetector extends EventEmitter {
     }
   }
 }
-
 
