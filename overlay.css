@@ -5,7 +5,7 @@
 }
 
 .cursor {
-      image-rendering: pixelated;
+      image-rendering: crisp-edges;
       position: absolute;
       pointer-events: none;
 
@@ -18,7 +18,6 @@
       background-size: contain;
       background-repeat: no-repeat;
       filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4));
-
       will-change: transform;
       backface-visibility: hidden;
       perspective: 1000px;
@@ -65,7 +64,7 @@ html {
       background-repeat: no-repeat;
       opacity: 1;
       border: none !important;
-
+      image-rendering: pixelated;
       will-change: transform, visibility;
       backface-visibility: hidden;
       perspective: 1000px;
@@ -193,76 +192,76 @@ html {
 }
 
 .cursor-type-arrow {
-      background-image: url('assets/user32_100.png');
+      background-image: url('assets/Normal Select.cur');
       transform: translate(-6px, -4px);
       width: 20px;
 }
 
 .cursor-type-hand {
-      background-image: url('assets/user32_114.cur');
+      background-image: url('assets/Link Select.cur');
       transform: translate(-8px, -8px);
       width: 32px;
 }
 
 .cursor-type-help {
-      background-image: url('assets/user32_102.cur');
+      background-image: url('assets/Help Select.cur');
 }
 
 .cursor-type-wait {
-      background-image: url('assets/user32_103.cur');
+      background-image: url('assets/Busy.cur');
 }
 
 .cursor-type-appstarting {
-      background-image: url('assets/user32_111.cur');
+      background-image: url('assets/Working In Background.cur');
 }
 
 .cursor-type-no {
-      background-image: url('assets/user32_110.cur');
+      background-image: url('assets/Unavailable.cur');
 }
 
 .cursor-type-cross {
-      background-image: url('assets/user32_109.cur');
+      background-image: url('assets/Precision Select.cur');
 }
 
 .cursor-type-ibeam {
-      background-image: url('assets/user32_113.cur');
+      background-image: url('assets/Text Select.cur');
       filter: invert(1) drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4));
       transform: translate(-11px, -13px);
       width: 40px;
 }
 
 .cursor-type-sizens {
-      background-image: url('assets/user32_108.cur');
+      background-image: url('assets/Vertical Resize.cur');
       transform: translate(-12px, -12px);
       width: 35px;
 }
 
 .cursor-type-sizewe {
-      background-image: url('assets/user32_107.cur');
+      background-image: url('assets/Horizontal Resize.cur');
       transform: translate(-12px, -12px);
       width: 35px;
 }
 
 .cursor-type-sizenwse {
-      background-image: url('assets/user32_105.cur');
+      background-image: url('assets/Diagonal Resize 1.cur');
       transform: translate(-12px, -12px);
       width: 35px;
 }
 
 .cursor-type-sizenesw {
-      background-image: url('assets/user32_106.cur');
+      background-image: url('assets/Diagonal Resize 2.cur');
       transform: translate(-12px, -12px);
       width: 35px;
 }
 
 .cursor-type-sizeall {
-      background-image: url('assets/user32_109.cur');
+      background-image: url('assets/Move.cur');
       transform: translate(-12px, -12px);
       width: 35px;
 }
 
 .cursor-type-uparrow {
-      background-image: url('assets/user32_104.cur');
+      background-image: url('assets/Handwriting.cur');
 }
 
 .cursor.lastActive {
@@ -284,3 +283,4 @@ html {
       transition: opacity 1s ease-in-out;
       opacity: 1;
 }
+

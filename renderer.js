@@ -80,14 +80,14 @@ class MultimouseRenderer {
     const last = this.lastPositions.get(d.deviceId);
     if (!last || last.x !== d.x || last.y !== d.y) {
       const sizes = {
-        arrow: [-7.5, -7, 24, 24],
-        hand: [-9, -8, 27, 28],
-        ibeam: [-12.5, -14, 30, 27],
-        sizens: [-12, -12, 26, 35],
-        sizewe: [-12, -12, 26, 35],
-        sizenwse: [-12, -12, 26, 35],
-        sizenesw: [-12, -12, 26, 35],
-        sizeall: [-12, -12, 26, 35],
+        arrow: [0, 0, 26, 26],
+        hand: [-4, -2, 26, 26],
+        ibeam: [-1.5, -6, 26, 26],
+        sizens: [-3, -9, 26, 26],
+        sizewe: [-8, -3, 26, 26],
+        sizenwse: [-6, -6, 26, 26],
+        sizenesw: [-6, -6, 26, 26],
+        sizeall: [-8, -8, 26, 26],
         default: [0, 0, 26, 26],
       };
       const [ox, oy, w, h] = sizes[(d.cursorType || '').toLowerCase()] || sizes.default;
@@ -96,7 +96,7 @@ class MultimouseRenderer {
         width: `${w}px`,
         height: `${h}px`,
         zoom: 1,
-        filter: 'contrast(2) grayscale(1)',
+        filter: 'contrast(2) grayscale(1), drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4))',
         visibility: 'visible',
         display: 'block',
         opacity: '1',
@@ -227,5 +227,4 @@ class MultimouseRenderer {
 document.addEventListener('DOMContentLoaded', () => new MultimouseRenderer());
 window.addEventListener('error', () => {});
 window.addEventListener('unhandledrejection', () => {});
-
 
