@@ -15,40 +15,22 @@ export class RawInputMouseDetector extends EventEmitter {
   public start(): boolean {
     if (this.isActive) return true;
 
-    console.log('=== DEMARRAGE RAW INPUT ===');
-
     try {
       const modulePath = path.join(__dirname, '..', 'build', 'Release', 'multimouse_raw_input.node');
-      console.log('Chemin module C++:', modulePath);
+      console.log('=== LOADING MODULE ===');
+      console.log('Tentative de chargement du module:', modulePath);
+      console.log('__dirname:', __dirname);
 
-      const fs = require('fs');
-      if (!fs.existsSync(modulePath)) {
-        console.error('ERREUR: Module C++ introuvable a:', modulePath);
-        return false;
-      }
-
-      console.log('Module C++ trouve, chargement...');
       this.rawInputModule = require(modulePath) as RawInputModuleInterface;
-      console.log('Module C++ charge avec succes');
+      console.log('Module chargé avec succès!');
 
-      if (!this.rawInputModule.setCallbacks) {
-        console.error('ERREUR: Methode setCallbacks manquante dans le module');
-        return false;
-      }
-
-      console.log('Configuration des callbacks...');
       this.rawInputModule.setCallbacks(this.handleMouseMove.bind(this), this.handleDeviceChange.bind(this));
 
-      console.log('Demarrage Raw Input...');
       const success = this.rawInputModule.startRawInput();
-      console.log('Resultat startRawInput():', success);
+      console.log('startRawInput result:', success);
 
       if (!success) {
-        console.error('ECHEC: startRawInput() a retourne false');
-        console.log('Cela peut indiquer:');
-        console.log('- Permissions insuffisantes (essayez en administrateur)');
-        console.log('- Aucune souris multiple detectee');
-        console.log("- Conflit avec d'autres applications");
+        console.log('ERREUR: startRawInput a retourné false');
         return false;
       }
 
@@ -60,12 +42,19 @@ export class RawInputMouseDetector extends EventEmitter {
         }
       }, 16);
 
-      console.log('Raw Input demarre avec SUCCES !');
+      setTimeout(() => {
+        this.simulateTestMovement();
+      }, 1000);
+
       this.emit('started');
       return true;
     } catch (error) {
-      console.error('EXCEPTION lors du demarrage Raw Input:', error);
-      console.log("Details de l'erreur:", error);
+      console.log('=== ERREUR CHARGEMENT MODULE ===');
+      console.log('Erreur:', error);
+      if (error instanceof Error) {
+        console.log('Message:', error.message);
+        console.log('Stack:', error.stack);
+      }
       return false;
     }
   }
@@ -116,11 +105,7 @@ export class RawInputMouseDetector extends EventEmitter {
 
     if ((actualData.dx === 0 && actualData.dy === 0) || (actualData.dx === undefined && actualData.dy === undefined)) {
       return;
-    }
-
-    const deviceKeyCheck = `device_${actualData.deviceHandle}`;
-    if (!this.devices.has(deviceKeyCheck)) {
-      console.log('NOUVEAU DEVICE DETECTE via mouvement:', actualData.deviceHandle, actualData.deviceName);
+      return;
     }
 
     let cleanDeviceName = 'Périphérique Inconnu';
@@ -196,7 +181,6 @@ export class RawInputMouseDetector extends EventEmitter {
         };
 
         this.devices.set(deviceKey, device);
-        console.log('NOUVEAU DEVICE AJOUTE:', device.name, '- Handle:', device.handle);
 
         this.emit('deviceAdded', device);
       }
@@ -204,7 +188,6 @@ export class RawInputMouseDetector extends EventEmitter {
       const device = this.devices.get(deviceKey);
       if (device) {
         this.devices.delete(deviceKey);
-        console.log('DEVICE SUPPRIME:', device.name, '- Handle:', device.handle);
 
         this.emit('deviceRemoved', device);
       }
@@ -257,6 +240,6 @@ export class RawInputMouseDetector extends EventEmitter {
     }
   }
 
-  public cleanupInactiveDevices(): void {}
+  public simulateTestMovement(): void {}
 }
 

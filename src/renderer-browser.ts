@@ -1,22 +1,17 @@
-import { ipcRenderer } from 'electron';
-import { AppConfig, CursorData, CursorInfo, CursorInstantUpdateData, CursorTypeChangeData, CursorVisibilityData, MouseMoveData } from './types';
-
 class MultimouseRenderer {
-  private cursors: Map<string, CursorInfo> = new Map();
-  private config: AppConfig | null = null;
+  private cursors: Map<string, any> = new Map();
+  private config: any = null;
   private cursorsContainer: HTMLElement;
   private sensitivityValue: HTMLElement;
   private activeCursors: HTMLElement;
   private deviceCount: HTMLElement;
 
   private lastPositions: Map<string, { x: number; y: number }> = new Map();
-  private pendingUpdates: Map<string, CursorData> = new Map();
-  private frameRequestId: NodeJS.Immediate | null = null;
+  private pendingUpdates: Map<string, any> = new Map();
+  private frameRequestId: any = null;
   private highPrecisionMode: boolean = true;
 
   constructor() {
-    console.log('=== RENDERER: Initialisation ===');
-
     const marker = document.createElement('div');
     marker.id = 'renderer-ready';
     marker.style.display = 'none';
@@ -35,27 +30,28 @@ class MultimouseRenderer {
 
   private async init(): Promise<void> {
     try {
+      const { ipcRenderer } = require('electron');
+
       this.config = await ipcRenderer.invoke('get-config');
       this.updateInfoPanel();
 
       const handlers: Record<string, (data: any) => void> = {
-        'cursors-updated': (d: CursorData[]) => this.updateCursors(d),
-        'mouse-move': (d: MouseMoveData) => this.updateSingleCursor(d),
-        'cursor-position-update': (d: CursorData) => this.handleHighPrecisionUpdate(d),
-        'cursors-instant-update': (d: CursorInstantUpdateData) => this.handleInstantUpdate(d),
+        'cursors-updated': (d: any[]) => this.updateCursors(d),
+        'mouse-move': (d: any) => this.updateSingleCursor(d),
+        'cursor-position-update': (d: any) => this.handleHighPrecisionUpdate(d),
+        'cursors-instant-update': (d: any) => this.handleInstantUpdate(d),
         'cursor-removed': (d: string) => this.removeCursor(d),
         'devices-updated': (d: { count: number }) => (this.deviceCount.textContent = d.count.toString()),
-        'config-updated': (d: AppConfig) => {
+        'config-updated': (d: any) => {
           this.config = d;
           this.updateInfoPanel();
         },
-        'cursor-type-changed': (d: CursorTypeChangeData) => this.updateCursorType(d),
-        'cursors-visibility-update': (d: CursorVisibilityData) => this.updateCursorsVisibility(d),
+        'cursor-type-changed': (d: any) => this.updateCursorType(d),
+        'cursors-visibility-update': (d: any) => this.updateCursorsVisibility(d),
       };
 
       for (const [evt, fn] of Object.entries(handlers)) {
-        ipcRenderer.on(evt, (_event, data) => {
-          console.log(`=== RENDERER: Événement reçu: ${evt} ===`, data);
+        ipcRenderer.on(evt, (_event: any, data: any) => {
           fn(data);
         });
       }
@@ -63,7 +59,6 @@ class MultimouseRenderer {
       document.addEventListener('pointermove', (e: PointerEvent) => this.handlePointerMove(e));
       this.startHighPrecisionLoop();
 
-      console.log('=== RENDERER: Signalement au main process ===');
       ipcRenderer.send('renderer-ready');
     } catch (err) {
       console.error('Error initializing renderer:', err);
@@ -91,7 +86,7 @@ class MultimouseRenderer {
     this.frameRequestId = setImmediate(loop);
   }
 
-  private handleHighPrecisionUpdate(d: CursorData): void {
+  private handleHighPrecisionUpdate(d: any): void {
     if (d.isActive) {
       this.updateCursorPositionInstant(d);
     } else {
@@ -99,10 +94,8 @@ class MultimouseRenderer {
     }
   }
 
-  private handleInstantUpdate(d: CursorInstantUpdateData): void {
-    console.log('=== RENDERER: handleInstantUpdate reçu ===', d);
-    d.cursors.forEach((c) => {
-      console.log('=== RENDERER: Traitement curseur ===', c);
+  private handleInstantUpdate(d: any): void {
+    d.cursors.forEach((c: any) => {
       this.updateCursorPositionInstant(c);
     });
   }
@@ -112,11 +105,9 @@ class MultimouseRenderer {
     this.pendingUpdates.clear();
   }
 
-  private updateCursorPositionInstant(d: CursorData): void {
-    console.log('=== RENDERER: updateCursorPositionInstant ===', d.deviceId, d.x, d.y);
+  private updateCursorPositionInstant(d: any): void {
     let cursor = this.cursors.get(d.deviceId);
     if (!cursor) {
-      console.log('=== RENDERER: Curseur non trouvé, création...===');
       return this.createNewCursor(d.deviceId, d);
     }
 
@@ -164,7 +155,7 @@ class MultimouseRenderer {
     }
   }
 
-  private updateCursors(arr: CursorData[]): void {
+  private updateCursors(arr: any[]): void {
     const existing = new Set(this.cursors.keys());
     arr.forEach((d) => {
       existing.delete(d.deviceId);
@@ -174,9 +165,9 @@ class MultimouseRenderer {
     this.updateInfoPanel();
   }
 
-  private updateSingleCursor(d: CursorData | MouseMoveData): void {
+  private updateSingleCursor(d: any): void {
     const deviceId = d.deviceId;
-    const cursorData: CursorData = 'dx' in d ? { ...d, id: deviceId } : d;
+    const cursorData: any = 'dx' in d ? { ...d, id: deviceId } : d;
 
     if (this.cursors.has(deviceId)) {
       this.updateExistingCursor(deviceId, cursorData);
@@ -186,8 +177,8 @@ class MultimouseRenderer {
     this.updateInfoPanel();
   }
 
-  private updateCursorsVisibility(data: CursorVisibilityData): void {
-    data.cursors.forEach((d) => {
+  private updateCursorsVisibility(data: any): void {
+    data.cursors.forEach((d: any) => {
       const cursor = this.cursors.get(d.deviceId);
       if (cursor) {
         cursor.element.style.opacity = d.isVisible ? '1' : '0';
@@ -198,11 +189,11 @@ class MultimouseRenderer {
     });
   }
 
-  private updateCursorType(d: CursorTypeChangeData): void {
+  private updateCursorType(d: any): void {
     const c = this.cursors.get(d.activeDeviceId);
     if (!c) return;
 
-    const classesToRemove = Array.from(c.element.classList).filter((cls) => cls.startsWith('cursor-type-'));
+    const classesToRemove = Array.from(c.element.classList).filter((cls: any) => cls.startsWith('cursor-type-'));
     c.element.classList.remove(...classesToRemove);
     c.element.classList.add(`cursor-type-${d.type.toLowerCase()}`);
     Object.assign(c, {
@@ -212,94 +203,113 @@ class MultimouseRenderer {
     });
   }
 
-  private createNewCursor(id: string, d: CursorData): void {
-    console.log('=== RENDERER: Création curseur ===', { id, x: d.x, y: d.y });
-    console.log('=== RENDERER: Container parent ===', this.cursorsContainer);
-
+  private createNewCursor(id: string, d: any): void {
     const el = document.createElement('div');
     el.className = `cursor cursor-${this.cursors.size % 8}`;
     el.id = `cursor-${id}`;
 
     Object.assign(el.style, {
-      position: 'absolute',
-      width: '30px',
-      height: '30px',
-      backgroundColor: '#FF0000',
-      border: '3px solid #FFFFFF',
-      borderRadius: '50%',
-      zIndex: '9999',
+      willChange: 'transform, visibility',
+      backfaceVisibility: 'hidden',
+      perspective: '1000px',
       visibility: 'visible',
       display: 'block',
       opacity: '1',
+      position: 'absolute',
+      zIndex: '1000',
       pointerEvents: 'none',
-      willChange: 'transform',
     });
+
+    if (d.color) {
+      el.style.backgroundColor = d.color;
+      el.style.border = `2px solid ${d.color}`;
+    }
+
+    if (d.cursorType) {
+      el.classList.add(`cursor-type-${d.cursorType.toLowerCase()}`);
+    } else {
+      Object.assign(el.style, {
+        width: '24px',
+        height: '24px',
+        backgroundColor: d.color || '#F00',
+        border: '2px solid #FFF',
+        borderRadius: '50%',
+      });
+    }
+
+    const cursorBody = document.createElement('div');
+    cursorBody.className = 'cursor-body';
+    el.appendChild(cursorBody);
 
     el.style.transform = `translate3d(${d.x || 400}px, ${d.y || 300}px, 0)`;
     this.cursorsContainer.appendChild(el);
-
-    console.log('=== RENDERER: Curseur ajouté au DOM ===', el);
-    console.log("=== RENDERER: Nombre d'enfants dans container ===", this.cursorsContainer.children.length);
-    console.log('=== RENDERER: Style du curseur ===', el.style.cssText);
-
-    const cursorInfo: CursorInfo = {
+    const cursorInfo: any = {
       element: el,
-      data: d,
       cursorType: d.cursorType || 'Arrow',
       cursorCSS: d.cursorCSS || 'default',
       cursorFile: d.cursorFile || 'aero_arrow.cur',
+      data: d,
     };
 
     this.cursors.set(id, cursorInfo);
     this.lastPositions.set(id, { x: d.x || 400, y: d.y || 300 });
-
-    const debugEl = document.getElementById('cursors-debug');
-    if (debugEl) debugEl.textContent = `Curseurs: ${this.cursors.size}`;
+    this.updateInfoPanel();
   }
 
-  private updateExistingCursor(id: string, d: CursorData): void {
-    const c = this.cursors.get(id);
-    if (!c) return;
+  private updateExistingCursor(deviceId: string, d: any): void {
+    const cursor = this.cursors.get(deviceId);
+    if (!cursor) return;
 
-    c.element.style.transform = `translate3d(${d.x}px, ${d.y}px, 0)`;
-    Object.assign(c.element.style, {
+    cursor.element.style.transform = `translate3d(${d.x}px, ${d.y}px, 0)`;
+    Object.assign(cursor.element.style, {
       opacity: d.isVisible === false ? '0' : '1',
       pointerEvents: d.isVisible === false ? 'none' : 'auto',
     });
 
-    if (d.cursorType && d.cursorType !== c.cursorType) {
-      this.updateCursorTypeClass(c.element, c.cursorType, d.cursorType);
-      c.cursorType = d.cursorType;
-      c.cursorCSS = d.cursorCSS || c.cursorCSS;
-      c.cursorFile = d.cursorFile || c.cursorFile;
+    if (d.cursorType && d.cursorType !== cursor.cursorType) {
+      cursor.element.classList.remove(`cursor-type-${cursor.cursorType?.toLowerCase()}`);
+      cursor.element.classList.add(`cursor-type-${d.cursorType.toLowerCase()}`);
+      Object.assign(cursor, {
+        cursorType: d.cursorType,
+        cursorCSS: d.cursorCSS,
+        cursorFile: d.cursorFile,
+      });
     }
-    c.data = d;
+
+    cursor.data = d;
   }
 
-  private removeCursor(id: string): void {
-    this.cursors.get(id)?.element.remove();
-    this.cursors.delete(id);
-    this.lastPositions.delete(id);
-    this.updateInfoPanel();
+  private removeCursor(deviceId: string): void {
+    const cursor = this.cursors.get(deviceId);
+    if (cursor) {
+      cursor.element.remove();
+      this.cursors.delete(deviceId);
+      this.lastPositions.delete(deviceId);
+      this.updateInfoPanel();
+    }
   }
 
   private updateInfoPanel(): void {
-    if (this.config) {
-      this.sensitivityValue.textContent = this.config.sensitivity.toFixed(1);
+    if (this.sensitivityValue && this.config) {
+      this.sensitivityValue.textContent = this.config.sensitivity?.toString() || '1.5';
     }
-    this.activeCursors.textContent = this.cursors.size.toString();
+    if (this.activeCursors) {
+      this.activeCursors.textContent = this.cursors.size.toString();
+    }
 
     const dbg = document.getElementById('debug-info');
     if (dbg) {
       dbg.textContent = `Cursors: ${this.cursors.size}`;
     }
 
+    const { ipcRenderer } = require('electron');
     ipcRenderer.invoke('get-device-count').then((c: number) => {
       this.deviceCount.textContent = c.toString();
     });
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    const { ipcRenderer } = require('electron');
     ipcRenderer.send('mouse-move', {
       deviceId: `pointer_${e.pointerId}`,
       deltaX: e.movementX,
@@ -309,21 +319,18 @@ class MultimouseRenderer {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('=== DOM CONTENT LOADED - Démarrage renderer ===');
   if (!document.querySelector('#renderer-ready')) {
     new MultimouseRenderer();
   }
 });
 
 window.addEventListener('load', () => {
-  console.log('=== WINDOW LOADED - Démarrage renderer fallback ===');
   if (!document.querySelector('#renderer-ready')) {
     new MultimouseRenderer();
   }
 });
 
 setTimeout(() => {
-  console.log('=== TIMEOUT FALLBACK - Démarrage renderer ===');
   if (!document.querySelector('#renderer-ready')) {
     new MultimouseRenderer();
   }

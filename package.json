@@ -6,13 +6,13 @@
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx",
     "clean": "eslint . --ext .ts,.tsx --fix && ts-prune | tee ts-prune-report.txt",
-    "build": "tsc && node-gyp rebuild",
+    "build": "tsc && electron-rebuild",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "compile": "tsc",
     "rebuild": "electron-rebuild",
     "install-deps": "npm install",
-    "postinstall": "node-gyp rebuild",
+    "postinstall": "electron-rebuild",
     "watch": "tsc --watch"
   },
   "keywords": [

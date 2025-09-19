@@ -48,8 +48,20 @@ class MultimouseApp {
 
   private screenWidth: number = 800;
   private screenHeight: number = 600;
+
+  private fullScreenWidth: number = 800;
+
+  private fullScreenHeight: number = 600;
   private centerX: number;
   private centerY: number;
+
+  private calibrationRatioX: number = 1.0;
+
+  private calibrationRatioY: number = 1.0;
+
+  private correctionFactorX: number = 1.0;
+
+  private correctionFactorY: number = 1.0;
 
   private lastRenderTime: number = 0;
   private targetFPS: number = 1000;
@@ -68,35 +80,20 @@ class MultimouseApp {
   private fileWatcher?: chokidar.FSWatcher;
 
   constructor() {
-    console.log('=== DEMARRAGE MULTIMOUSE ELECTRON ===');
-    console.log('Configuration par defaut:', DEFAULT_CONFIG);
-
     this.configPath = path.join(__dirname, '..', 'config.json');
     this.centerX = this.screenWidth / 2;
     this.centerY = this.screenHeight / 2;
     this.frameInterval = 1000 / this.targetFPS;
 
-    console.log('Initialisation des detecteurs...');
     this.mouseDetector = new RawInputMouseDetector();
     this.cursorTypeDetector = new CursorTypeDetector();
 
-    console.log('Configuration des evenements...');
     this.setupMouseEvents();
     this.setupCursorTypeEvents();
-
-    console.log('Chargement de la configuration...');
     this.loadConfig();
-
-    console.log('Configuration des evenements app...');
     this.setupAppEvents();
-
-    console.log('Configuration du watcher de fichiers...');
     this.setupFileWatcher();
-
-    console.log('Initialisation de la boucle haute performance...');
     this.initHighPerformanceLoop();
-
-    console.log('=== INITIALISATION TERMINEE ===');
   }
 
   private initHighPerformanceLoop(): void {
@@ -155,21 +152,23 @@ class MultimouseApp {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       const activeCursors = Array.from(this.cursors.values())
         .filter((c) => c.hasMovedOnce)
-        .map(
-          (c): CursorData => ({
-            deviceId: c.id,
-            x: c.x,
-            y: c.y,
-            color: c.color,
-            cursorType: c.cursorType,
-            cursorCSS: c.cursorCSS,
-            cursorFile: c.cursorFile,
-            isVisible: true,
-          }),
-        );
+        .map((c) => ({
+          deviceId: c.id,
+          deviceName: c.deviceName,
+          deviceHandle: c.deviceHandle,
+          x: c.x,
+          y: c.y,
+          color: c.color,
+          isRawInput: c.isRawInput,
+          cursorType: c.cursorType,
+          cursorCSS: c.cursorCSS,
+          cursorFile: c.cursorFile,
+          isVisible: true,
+        }));
 
       const now = Date.now();
       if (activeCursors.length > 0 && now - this.lastLogTime > this.logThrottle) {
+        activeCursors.forEach((c) => {});
         this.lastLogTime = now;
       }
 
@@ -197,32 +196,21 @@ class MultimouseApp {
   }
 
   private setupMouseEvents(): void {
-    console.log('Configuration des evenements de souris...');
-
-    this.mouseDetector.on('deviceAdded', (device: MouseDevice) => {
-      console.log('Nouveau peripherique detecte:', device);
+    this.mouseDetector.on('deviceAdded', () => {
       this.updateDeviceDisplay();
     });
 
     this.mouseDetector.on('deviceRemoved', (device: MouseDevice) => {
-      console.log('Peripherique retire:', device);
       this.removeCursor(device.id);
       this.updateDeviceDisplay();
     });
 
     this.mouseDetector.on('mouseMove', (data: MouseMoveData) => {
-      if (data.isRawInput || process.env.NODE_ENV === 'development') {
-      }
       this.handleMouseMove(data);
     });
 
-    this.mouseDetector.on('started', () => {
-      console.log('Detecteur de souris demarre avec succes');
-    });
-
-    this.mouseDetector.on('stopped', () => {
-      console.log('Detecteur de souris arrete');
-    });
+    this.mouseDetector.on('started', () => {});
+    this.mouseDetector.on('stopped', () => {});
   }
 
   private setupCursorTypeEvents(): void {
@@ -251,6 +239,8 @@ class MultimouseApp {
       const primaryDisplay: Display = screen.getPrimaryDisplay();
       this.screenWidth = primaryDisplay.size.width;
       this.screenHeight = primaryDisplay.size.height;
+      this.fullScreenWidth = primaryDisplay.size.width;
+      this.fullScreenHeight = primaryDisplay.size.height;
       this.centerX = this.screenWidth / 2;
       this.centerY = this.screenHeight / 2;
 
@@ -274,9 +264,7 @@ class MultimouseApp {
     });
 
     app.on('window-all-closed', () => {
-      if (process.platform !== 'darwin') {
-        console.log("Toutes les fenetres fermees, mais l'app reste active pour le multi-souris");
-      }
+      this.shutdown();
     });
 
     app.on('before-quit', () => {
@@ -314,7 +302,33 @@ class MultimouseApp {
     }
   }
 
-  private async calibrateCoordinateMapping(): Promise<void> {}
+  private async calibrateCoordinateMapping(): Promise<void> {
+    try {
+      let currentSystemPos = null;
+      if (this.mouseDetector.rawInputModule?.getSystemCursorPos) {
+        currentSystemPos = this.mouseDetector.rawInputModule.getSystemCursorPos();
+      } else {
+        currentSystemPos = screen.getCursorScreenPoint();
+      }
+
+      if (currentSystemPos) {
+        this.calibrationRatioX = 1.0;
+        this.calibrationRatioY = 1.0;
+        this.correctionFactorX = 1.0;
+        this.correctionFactorY = 1.0;
+      } else {
+        this.calibrationRatioX = 1.0;
+        this.calibrationRatioY = 1.0;
+        this.correctionFactorX = 1.0;
+        this.correctionFactorY = 1.0;
+      }
+    } catch (error) {
+      this.calibrationRatioX = 1.0;
+      this.calibrationRatioY = 1.0;
+      this.correctionFactorX = 1.0;
+      this.correctionFactorY = 1.0;
+    }
+  }
 
   private convertHTMLToSystemCoordinates(htmlX: number, htmlY: number): { x: number; y: number } {
     return {
@@ -323,83 +337,34 @@ class MultimouseApp {
     };
   }
 
-  private startMouseInput(): void {
-    console.log('Demarrage de la detection des souris...');
-
-    const success = this.mouseDetector.start();
-    console.log('Raw input demarre:', success);
-
-    if (success) {
-      this.centerSystemCursor();
-      console.log('Raw input initialise avec succes');
-    } else {
-      console.log('Echec du demarrage raw input, mode fallback actif...');
-      console.log('Veuillez connecter plusieurs souris pour tester la detection');
-
-      this.tryAlternativeDetection();
+  private analyzeCoordinateAccuracy(htmlPos: any, systemPos: any): void {
+    if (!htmlPos || !systemPos) return;
+    const deltaX = Math.abs(systemPos.x - htmlPos.x);
+    const deltaY = Math.abs(systemPos.y - htmlPos.y);
+    if (deltaX > 2 || deltaY > 2) {
     }
-
-    console.log('Demarrage de la detection du type de curseur...');
-    this.cursorTypeDetector.start();
   }
 
-  private tryAlternativeDetection(): void {
-    console.log('=== TENTATIVE DETECTION ALTERNATIVE ===');
+  private convertSystemToHTMLCoordinates(systemX: number, systemY: number): { x: number; y: number } {
+    return {
+      x: systemX,
+      y: systemY,
+    };
+  }
 
-    const { exec } = require('child_process');
+  private startMouseInput(): void {
+    try {
+      const success = this.mouseDetector.start();
 
-    exec('powershell "Get-WmiObject -Class Win32_PointingDevice | Select-Object Name, Description, DeviceID"', (error: any, stdout: string, _stderr: string) => {
-      if (error) {
-        console.error('Erreur PowerShell:', error);
-        return;
-      }
-
-      console.log('Dispositifs de pointage detectes par Windows:');
-      console.log(stdout);
-
-      const lines = stdout.split('\n').filter((line) => line.trim() && !line.includes('Name') && !line.includes('---'));
-      const mouseCount = lines.filter((line) => line.toLowerCase().includes('mouse') || line.toLowerCase().includes('souris') || line.toLowerCase().includes('pointing')).length;
-
-      console.log(`Nombre de dispositifs de pointage detectes: ${mouseCount}`);
-
-      if (mouseCount >= 2) {
-        console.log('PLUSIEURS SOURIS DETECTEES ! Raw Input devrait fonctionner.');
-        console.log('Si Raw Input ne fonctionne pas, essayez:');
-        console.log('1. Appuyez sur F4 pour forcer le rechargement');
-        console.log("2. Lancez l'application en tant qu'administrateur");
-        console.log("3. Redemarrez l'application");
+      if (success) {
+        this.centerSystemCursor();
       } else {
-        console.log('Une seule souris detectee. Connectez une deuxieme souris pour utiliser le multi-curseur.');
       }
-    });
+    } catch (error) {}
 
-    this.detectHIDMice();
-  }
-
-  private detectHIDMice(): void {
-    console.log('=== DETECTION VIA PILOTES HID ===');
-
-    const { exec } = require('child_process');
-
-    exec("powershell \"Get-PnpDevice | Where-Object {$_.Class -eq 'Mouse' -or $_.FriendlyName -like '*Mouse*' -or $_.FriendlyName -like '*Souris*'} | Select-Object FriendlyName, Status, InstanceId\"", (error: any, stdout: string, _stderr: string) => {
-      if (error) {
-        console.error('Erreur detection HID:', error);
-        return;
-      }
-
-      console.log('Pilotes de souris HID:');
-      console.log(stdout);
-
-      const activeDevices = stdout.split('\n').filter((line) => line.includes('OK') && (line.toLowerCase().includes('mouse') || line.toLowerCase().includes('souris')));
-
-      console.log(`Pilotes de souris actifs detectes: ${activeDevices.length}`);
-
-      if (activeDevices.length >= 2) {
-        console.log('MULTIPLES PILOTES DE SOURIS DETECTES !');
-        console.log('Cela confirme que vous avez plusieurs souris.');
-        console.log('Raw Input devrait pouvoir les detecter.');
-      }
-    });
+    try {
+      this.cursorTypeDetector.start();
+    } catch (error) {}
   }
 
   private centerSystemCursor(): void {
@@ -409,10 +374,6 @@ class MultimouseApp {
   }
 
   private handleMouseMove(mouseData: MouseMoveData): void {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Mouvement souris détecté:', mouseData.deviceId, 'dx:', mouseData.dx, 'dy:', mouseData.dy);
-    }
-
     const cursorId = mouseData.deviceId;
     const deviceName = mouseData.deviceName || 'Device Inconnu';
     const isRawInput = mouseData.isRawInput || false;
@@ -426,8 +387,6 @@ class MultimouseApp {
 
     let cursor = this.cursors.get(cursorId);
     if (!cursor) {
-      console.log('Nouveau curseur créé pour device:', cursorId, deviceName);
-
       const colorIndex = this.getStableColorIndex(cursorId);
       cursor = {
         id: cursorId,
@@ -479,7 +438,7 @@ class MultimouseApp {
     this.sendInstantCursorUpdate(cursor);
   }
 
-  private sendInstantCursorUpdate(cursor: CursorState): void {
+  sendInstantCursorUpdate(cursor: CursorState): void {
     if (cursor.hasMovedOnce && this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.webContents.send('cursor-position-update', {
         deviceId: cursor.id,
@@ -578,11 +537,17 @@ class MultimouseApp {
       this.forceReloadRawInput();
     });
 
+    globalShortcut.register('F5', () => {
+      console.log("Ajout d'un curseur de test...");
+      this.addTestCursor();
+    });
+
     console.log('Raccourcis claviers configures:');
     console.log('F1: Redemarrer detection souris');
     console.log('F2: Nettoyer curseurs');
     console.log('F3: Infos dispositifs');
     console.log('F4: Recharger Raw Input');
+    console.log('F5: Ajouter curseur de test');
   }
 
   private forceReloadRawInput(): void {
@@ -615,6 +580,53 @@ class MultimouseApp {
     }, 1500);
   }
 
+  private addTestCursor(): void {
+    const testId = `test-cursor-${Date.now()}`;
+    const colors = this.config.cursorColors;
+    const testCursor: CursorState = {
+      id: testId,
+      deviceName: 'Test Mouse',
+      deviceHandle: 'test-handle',
+      x: Math.random() * (this.screenWidth - 100) + 50,
+      y: Math.random() * (this.screenHeight - 100) + 50,
+      color: colors[this.cursors.size % colors.length],
+      lastUpdate: Date.now(),
+      isRawInput: false,
+      cursorType: 'Arrow',
+      cursorCSS: 'cursor-type-arrow',
+      cursorFile: 'aero_arrow.cur',
+      hasMovedOnce: true,
+      totalMovement: 0,
+    };
+
+    this.cursors.set(testId, testCursor);
+    console.log(`Curseur de test créé: ${testId} à (${testCursor.x}, ${testCursor.y})`);
+    console.log('DEBUG: Envoi du curseur de test au renderer...');
+
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      const cursorData: CursorData = {
+        deviceId: testCursor.id,
+        x: testCursor.x,
+        y: testCursor.y,
+        color: testCursor.color,
+        cursorType: testCursor.cursorType,
+        cursorCSS: testCursor.cursorCSS,
+        cursorFile: testCursor.cursorFile,
+        isVisible: true,
+      };
+
+      this.overlayWindow.webContents.send('cursors-instant-update', {
+        cursors: [cursorData],
+        lastActiveDevice: testId,
+        timestamp: performance.now(),
+      });
+
+      setTimeout(() => {
+        this.sendExistingCursorsToRenderer();
+      }, 100);
+    }
+  }
+
   private createOverlayWindow(): void {
     console.log('Creation de la fenetre overlay...');
 
@@ -629,6 +641,7 @@ class MultimouseApp {
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
+        webSecurity: false,
       },
     });
 

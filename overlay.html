@@ -47,10 +47,18 @@
         </div>
     </div>
     <script>
-        const { require } = require('electron');
-        window.require = require;
+
+        window.exports = {};
+        window.module = { exports: {} };
+
+        try {
+            const { require } = require('electron');
+            window.require = require;
+        } catch (e) {
+            console.error('Erreur require electron:', e);
+        }
     </script>
-    <script src="dist/renderer.js"></script>
+    <script src="dist/renderer-browser.js"></script>
 </body>
 
 </html>
