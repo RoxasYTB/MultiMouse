@@ -121,7 +121,11 @@ class MultimouseRenderer {
         sizewe: [-8, -3, 26, 26],
         sizenwse: [-6, -6, 26, 26],
         sizenesw: [-6, -6, 26, 26],
+        wait: [-5, -8.5, 26, 26],
+        cross: [-10, -10, 35, 35],
         sizeall: [-8, -8, 26, 26],
+        no: [-8, -8, 26, 26],
+        help: [-1, -1, 26, 26],
         default: [0, 0, 26, 26],
       };
       const [ox, oy, w, h] = sizes[(d.cursorType || '').toLowerCase()] || sizes.default;

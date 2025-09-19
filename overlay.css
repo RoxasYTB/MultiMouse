@@ -264,6 +264,12 @@ html {
       background-image: url('assets/Handwriting.cur');
 }
 
+.cursor-type-cross {
+      filter: invert(1) drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4));
+      transform: translate(-11px, -13px);
+      width: 40px;
+}
+
 .cursor.lastActive {
       transform: scale(1.1);
       z-index: 1001;
