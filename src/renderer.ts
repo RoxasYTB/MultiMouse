@@ -1,13 +1,5 @@
 import { ipcRenderer } from 'electron';
-import { 
-  AppConfig, 
-  CursorData, 
-  CursorInfo, 
-  MouseMoveData, 
-  CursorTypeChangeData, 
-  CursorVisibilityData, 
-  CursorInstantUpdateData 
-} from './types';
+import { AppConfig, CursorData, CursorInfo, CursorInstantUpdateData, CursorTypeChangeData, CursorVisibilityData, MouseMoveData } from './types';
 
 class MultimouseRenderer {
   private cursors: Map<string, CursorInfo> = new Map();
@@ -120,11 +112,11 @@ class MultimouseRenderer {
         default: [0, 0, 26, 26],
       };
       const [ox, oy, w, h] = sizes[(d.cursorType || '').toLowerCase()] || sizes.default;
-      
+
       cursor.element.style.transform = `translate3d(${d.x + ox}px, ${d.y + oy}px, 0)`;
       cursor.element.style.width = `${w}px`;
       cursor.element.style.height = `${h}px`;
-      
+
       this.lastPositions.set(d.deviceId, { x: d.x, y: d.y });
     }
 
@@ -157,7 +149,7 @@ class MultimouseRenderer {
   private updateSingleCursor(d: CursorData | MouseMoveData): void {
     const deviceId = d.deviceId;
     const cursorData: CursorData = 'dx' in d ? { ...d, id: deviceId } : d;
-    
+
     if (this.cursors.has(deviceId)) {
       this.updateExistingCursor(deviceId, cursorData);
     } else {
@@ -181,15 +173,14 @@ class MultimouseRenderer {
   private updateCursorType(d: CursorTypeChangeData): void {
     const c = this.cursors.get(d.activeDeviceId);
     if (!c) return;
-    
-    // Remove all cursor-type classes
+
     const classesToRemove = Array.from(c.element.classList).filter((cls) => cls.startsWith('cursor-type-'));
     c.element.classList.remove(...classesToRemove);
     c.element.classList.add(`cursor-type-${d.type.toLowerCase()}`);
-    Object.assign(c, { 
-      cursorType: d.type, 
-      cursorCSS: d.cssClass, 
-      cursorFile: d.file 
+    Object.assign(c, {
+      cursorType: d.type,
+      cursorCSS: d.cssClass,
+      cursorFile: d.file,
     });
   }
 
@@ -229,7 +220,7 @@ class MultimouseRenderer {
       data: d,
       cursorType: d.cursorType || 'Arrow',
       cursorCSS: d.cursorCSS || 'default',
-      cursorFile: d.cursorFile || 'aero_arrow.cur'
+      cursorFile: d.cursorFile || 'aero_arrow.cur',
     };
 
     this.cursors.set(id, cursorInfo);
@@ -239,7 +230,7 @@ class MultimouseRenderer {
   private updateExistingCursor(id: string, d: CursorData): void {
     const c = this.cursors.get(id);
     if (!c) return;
-    
+
     c.element.style.transform = `translate3d(${d.x}px, ${d.y}px, 0)`;
     Object.assign(c.element.style, {
       opacity: d.isVisible === false ? '0' : '1',
@@ -267,12 +258,12 @@ class MultimouseRenderer {
       this.sensitivityValue.textContent = this.config.sensitivity.toFixed(1);
     }
     this.activeCursors.textContent = this.cursors.size.toString();
-    
+
     const dbg = document.getElementById('debug-info');
     if (dbg) {
       dbg.textContent = `Cursors: ${this.cursors.size}`;
     }
-    
+
     ipcRenderer.invoke('get-device-count').then((c: number) => {
       this.deviceCount.textContent = c.toString();
     });
@@ -286,10 +277,10 @@ class MultimouseRenderer {
   }
 
   private handlePointerMove(e: PointerEvent): void {
-    ipcRenderer.send('mouse-move', { 
-      deviceId: `pointer_${e.pointerId}`, 
-      deltaX: e.movementX, 
-      deltaY: e.movementY 
+    ipcRenderer.send('mouse-move', {
+      deviceId: `pointer_${e.pointerId}`,
+      deltaX: e.movementX,
+      deltaY: e.movementY,
     });
   }
 }
@@ -303,3 +294,4 @@ window.addEventListener('error', (e: ErrorEvent) => {
 window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
   console.error('Unhandled promise rejection:', e.reason);
 });
+

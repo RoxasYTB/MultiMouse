@@ -1,5 +1,5 @@
 import { exec } from 'child_process';
-import { screen, Display } from 'electron';
+import { screen } from 'electron';
 import { EventEmitter } from 'events';
 import { MouseDevice, MouseMoveData } from './types';
 

@@ -14,17 +14,16 @@ interface ESLintResult {
 
 const reportPath = './eslint-report.json';
 
-// Supprimer le rapport précédent s'il existe
 if (fs.existsSync(reportPath)) {
   fs.unlinkSync(reportPath);
 }
 
 try {
-  execSync('npx eslint . --ext .ts --ignore-pattern node_modules/* --rule "no-unused-vars: 2" -f json > eslint-report.json 2>nul', { 
-    stdio: 'ignore'
+  execSync('npx eslint . --ext .ts --ignore-pattern node_modules/* --rule "no-unused-vars: 2" -f json > eslint-report.json 2>nul', {
+    stdio: 'ignore',
   });
 } catch {
-  // Ignorer les erreurs ESLint
+  
 }
 
 if (!fs.existsSync(reportPath)) {
@@ -51,7 +50,7 @@ for (const file of report) {
 
     let declType = 'variable';
 
-    // Vérifier si c'est une fonction
+    
     const funcRegex = new RegExp(`^(?:async\\s+)?(?:export\\s+)?(?:function\\s+|const\\s+${varName}\\s*=\\s*(?:async\\s+)?\\(|let\\s+${varName}\\s*=\\s*(?:async\\s+)?\\()`);
     if (funcRegex.test(line)) {
       let depth = 0;
@@ -77,7 +76,7 @@ for (const file of report) {
       continue;
     }
 
-    // Traiter les variables/constantes
+    
     const regex = new RegExp(`\\b(let|const|var)\\s+${varName}\\s*=[^,;]*[;,]?`);
     const match = code[lineIndex].match(regex);
     if (match) {
@@ -92,7 +91,7 @@ for (const file of report) {
   }
 
   if (changed) {
-    // Supprimer les lignes vides consécutives
+    
     code = code.filter((line, i, arr) => {
       if (line.trim() !== '') return true;
       return i > 0 && arr[i - 1].trim() !== '';
@@ -102,5 +101,6 @@ for (const file of report) {
   }
 }
 
-// Supprimer le rapport
 fs.unlinkSync(reportPath);
+
+

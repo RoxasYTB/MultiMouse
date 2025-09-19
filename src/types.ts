@@ -81,10 +81,7 @@ export interface CursorInstantUpdateData {
 }
 
 export interface RawInputModuleInterface {
-  setCallbacks(
-    onMouseMove: (data: any) => void,
-    onDeviceChange: (data: DeviceChangeData) => void
-  ): void;
+  setCallbacks(onMouseMove: (data: any) => void, onDeviceChange: (data: DeviceChangeData) => void): void;
   startRawInput(): boolean;
   stopRawInput(): void;
   processMessages(): void;

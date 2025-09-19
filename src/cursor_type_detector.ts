@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
 import * as path from 'path';
 
 export class CursorTypeDetector {
@@ -173,25 +173,19 @@ while ($true) {
             const previousType = this.currentCursorType;
             this.currentCursorType = output;
 
-            // Notify all callbacks about the cursor type change
             for (const callback of this.callbacks) {
               try {
                 callback(output);
-              } catch (error) {
-                // Handle callback errors
-              }
+              } catch (error) {}
             }
           }
         }
       });
 
-      this.powershellProcess.stderr?.on('data', (data: Buffer) => {
-        // Handle stderr if needed
-      });
+      this.powershellProcess.stderr?.on('data', (data: Buffer) => {});
 
       this.powershellProcess.on('close', (code: number | null) => {
         if (code !== 0) {
-          // Handle process close
         }
         this.isDetecting = false;
       });
@@ -262,3 +256,4 @@ while ($true) {
     };
   }
 }
+

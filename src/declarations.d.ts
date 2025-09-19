@@ -21,6 +21,6 @@ declare module 'chokidar' {
     on(event: string, callback: (path: string) => void): void;
     close(): void;
   }
-  
+
   export function watch(paths: string | string[], options?: any): FSWatcher;
 }

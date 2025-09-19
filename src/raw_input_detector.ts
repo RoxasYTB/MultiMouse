@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import * as path from 'path';
-import { MouseDevice, MouseMoveData, DeviceChangeData, RawInputModuleInterface } from './types';
+import { DeviceChangeData, MouseDevice, MouseMoveData, RawInputModuleInterface } from './types';
 
 export class RawInputMouseDetector extends EventEmitter {
   private isActive: boolean = false;
@@ -20,10 +20,7 @@ export class RawInputMouseDetector extends EventEmitter {
 
       this.rawInputModule = require(modulePath) as RawInputModuleInterface;
 
-      this.rawInputModule.setCallbacks(
-        this.handleMouseMove.bind(this),
-        this.handleDeviceChange.bind(this)
-      );
+      this.rawInputModule.setCallbacks(this.handleMouseMove.bind(this), this.handleDeviceChange.bind(this));
 
       const success = this.rawInputModule.startRawInput();
 
@@ -219,11 +216,8 @@ export class RawInputMouseDetector extends EventEmitter {
     }
   }
 
-  public cleanupInactiveDevices(): void {
-    // Implementation for cleaning up inactive devices
-  }
+  public cleanupInactiveDevices(): void {}
 
-  private simulateTestMovement(): void {
-    // Implementation for test movement simulation
-  }
+  private simulateTestMovement(): void {}
 }
+

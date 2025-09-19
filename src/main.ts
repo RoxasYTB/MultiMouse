@@ -1,12 +1,12 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen, Display } from 'electron';
-import * as path from 'path';
-import * as fs from 'fs';
 import { exec } from 'child_process';
 import * as chokidar from 'chokidar';
+import { app, BrowserWindow, Display, globalShortcut, ipcMain, screen } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
 
-import { RawInputMouseDetector } from './raw_input_detector';
 import { CursorTypeDetector } from './cursor_type_detector';
-import { AppConfig, MouseMoveData, MouseDevice, CursorData } from './types';
+import { RawInputMouseDetector } from './raw_input_detector';
+import { AppConfig, CursorData, MouseDevice, MouseMoveData } from './types';
 
 if (process.platform === 'win32') {
   exec('chcp 65001');
@@ -149,16 +149,18 @@ class MultimouseApp {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       const activeCursors = Array.from(this.cursors.values())
         .filter((c) => c.hasMovedOnce)
-        .map((c): CursorData => ({
-          deviceId: c.id,
-          x: c.x,
-          y: c.y,
-          color: c.color,
-          cursorType: c.cursorType,
-          cursorCSS: c.cursorCSS,
-          cursorFile: c.cursorFile,
-          isVisible: true,
-        }));
+        .map(
+          (c): CursorData => ({
+            deviceId: c.id,
+            x: c.x,
+            y: c.y,
+            color: c.color,
+            cursorType: c.cursorType,
+            cursorCSS: c.cursorCSS,
+            cursorFile: c.cursorFile,
+            isVisible: true,
+          }),
+        );
 
       const now = Date.now();
       if (activeCursors.length > 0 && now - this.lastLogTime > this.logThrottle) {
@@ -174,11 +176,7 @@ class MultimouseApp {
   }
 
   private setupFileWatcher(): void {
-    const filesToWatch = [
-      path.join(__dirname, '..', 'overlay.css'),
-      path.join(__dirname, '..', 'overlay.html'),
-      path.join(__dirname, 'renderer.js')
-    ];
+    const filesToWatch = [path.join(__dirname, '..', 'overlay.css'), path.join(__dirname, '..', 'overlay.html'), path.join(__dirname, 'renderer.js')];
 
     this.fileWatcher = chokidar.watch(filesToWatch, {
       ignored: /(^|[\/\\])\../,
@@ -339,7 +337,6 @@ class MultimouseApp {
     const deltaX = Math.abs(systemPos.x - htmlPos.x);
     const deltaY = Math.abs(systemPos.y - htmlPos.y);
     if (deltaX > 2 || deltaY > 2) {
-      // Logging could be added here
     }
   }
 
@@ -357,15 +354,11 @@ class MultimouseApp {
       if (success) {
         this.centerSystemCursor();
       }
-    } catch (error) {
-      // Error handling
-    }
+    } catch (error) {}
 
     try {
       this.cursorTypeDetector.start();
-    } catch (error) {
-      // Error handling
-    }
+    } catch (error) {}
   }
 
   private centerSystemCursor(): void {
@@ -627,9 +620,7 @@ class MultimouseApp {
   private saveConfig(): void {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
-    } catch (error) {
-      // Error handling
-    }
+    } catch (error) {}
   }
 
   public shutdown(): void {
@@ -682,6 +673,5 @@ process.on('uncaughtException', (error: Error) => {
   multimouseApp.shutdown();
 });
 
-process.on('unhandledRejection', (reason: any) => {
-  // Error handling
-});
+process.on('unhandledRejection', (reason: any) => {});
+

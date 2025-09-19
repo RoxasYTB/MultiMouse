@@ -28,16 +28,8 @@
     "noPropertyAccessFromIndexSignature": false,
     "noUncheckedIndexedAccess": false
   },
-  "include": [
-    "src/**/*",
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "**/*.js"
-  ],
+  "include": ["src/**/*", "src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "build", "**/*.js"],
   "ts-node": {
     "esm": false,
     "experimentalSpecifierResolution": "node"
