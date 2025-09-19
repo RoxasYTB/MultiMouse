@@ -1,12 +1,12 @@
 import { exec } from 'child_process';
 import * as chokidar from 'chokidar';
-import { app, BrowserWindow, Display, globalShortcut, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, Display, ipcMain, screen } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import { CursorTypeDetector } from './cursor_type_detector';
 import { RawInputMouseDetector } from './raw_input_detector';
-import { AppConfig, CursorData, MouseDevice, MouseMoveData } from './types';
+import { AppConfig, MouseDevice, MouseMoveData } from './types';
 
 if (process.platform === 'win32') {
   exec('chcp 65001');
@@ -248,7 +248,6 @@ class MultimouseApp {
       this.startMouseInput();
       this.createOverlayWindow();
       this.setupIPC();
-      this.setupGlobalShortcuts();
 
       screen.on('display-metrics-changed', () => {
         this.updateScreenDimensions();
@@ -269,7 +268,6 @@ class MultimouseApp {
 
     app.on('before-quit', () => {
       this.saveConfig();
-      globalShortcut.unregisterAll();
     });
   }
 
@@ -490,143 +488,6 @@ class MultimouseApp {
     }
   }
 
-  private setupGlobalShortcuts(): void {
-    globalShortcut.register('CommandOrControl+Shift+=', () => {
-      this.increaseSensitivity();
-    });
-
-    globalShortcut.register('CommandOrControl+Shift+-', () => {
-      this.decreaseSensitivity();
-    });
-
-    globalShortcut.register('F1', () => {
-      console.log('Redemarrage de la detection des souris...');
-      this.mouseDetector.stop();
-      setTimeout(() => {
-        const success = this.mouseDetector.start();
-        console.log('Redemarrage Raw Input:', success ? 'succes' : 'echec');
-      }, 1000);
-    });
-
-    globalShortcut.register('F2', () => {
-      console.log('Nettoyage de tous les curseurs...');
-      this.cursors.clear();
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        this.overlayWindow.webContents.send('cursors-instant-update', {
-          cursors: [],
-          lastActiveDevice: null,
-          timestamp: performance.now(),
-        });
-      }
-    });
-
-    globalShortcut.register('F3', () => {
-      console.log('=== INFORMATIONS DES DISPOSITIFS ===');
-      console.log('Curseurs actifs:', this.cursors.size);
-      console.log('Devices connectes:', this.mouseDetector.getDeviceCount());
-      console.log('Raw Input actif:', this.mouseDetector.isRunning());
-      console.log('Module C++ charge:', this.mouseDetector.rawInputModule !== null);
-      console.log('Liste des curseurs:');
-      this.cursors.forEach((cursor, id) => {
-        console.log(`- ${id}: ${cursor.deviceName} at (${Math.round(cursor.x)}, ${Math.round(cursor.y)})`);
-      });
-    });
-
-    globalShortcut.register('F4', () => {
-      console.log('Tentative de rechargement force du module Raw Input...');
-      this.forceReloadRawInput();
-    });
-
-    globalShortcut.register('F5', () => {
-      console.log("Ajout d'un curseur de test...");
-      this.addTestCursor();
-    });
-
-    console.log('Raccourcis claviers configures:');
-    console.log('F1: Redemarrer detection souris');
-    console.log('F2: Nettoyer curseurs');
-    console.log('F3: Infos dispositifs');
-    console.log('F4: Recharger Raw Input');
-    console.log('F5: Ajouter curseur de test');
-  }
-
-  private forceReloadRawInput(): void {
-    console.log('=== RECHARGEMENT FORCE RAW INPUT ===');
-
-    this.mouseDetector.stop();
-
-    setTimeout(() => {
-      console.log('Tentative 1: Redemarrage standard...');
-      let success = this.mouseDetector.start();
-
-      if (!success) {
-        console.log('Tentative 2: Recreation du detecteur...');
-        this.mouseDetector = new RawInputMouseDetector();
-        this.setupMouseEvents();
-        success = this.mouseDetector.start();
-      }
-
-      console.log('Resultat rechargement force:', success ? 'SUCCES' : 'ECHEC');
-
-      if (success) {
-        console.log('Raw Input maintenant actif - testez vos souris !');
-      } else {
-        console.log('PROBLEME: Raw Input toujours inactif');
-        console.log('Suggestions:');
-        console.log("1. Lancez l'application en tant qu'administrateur");
-        console.log('2. Verifiez que plusieurs souris sont connectees');
-        console.log("3. Redemarrez l'application completement");
-      }
-    }, 1500);
-  }
-
-  private addTestCursor(): void {
-    const testId = `test-cursor-${Date.now()}`;
-    const colors = this.config.cursorColors;
-    const testCursor: CursorState = {
-      id: testId,
-      deviceName: 'Test Mouse',
-      deviceHandle: 'test-handle',
-      x: Math.random() * (this.screenWidth - 100) + 50,
-      y: Math.random() * (this.screenHeight - 100) + 50,
-      color: colors[this.cursors.size % colors.length],
-      lastUpdate: Date.now(),
-      isRawInput: false,
-      cursorType: 'Arrow',
-      cursorCSS: 'cursor-type-arrow',
-      cursorFile: 'aero_arrow.cur',
-      hasMovedOnce: true,
-      totalMovement: 0,
-    };
-
-    this.cursors.set(testId, testCursor);
-    console.log(`Curseur de test créé: ${testId} à (${testCursor.x}, ${testCursor.y})`);
-    console.log('DEBUG: Envoi du curseur de test au renderer...');
-
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      const cursorData: CursorData = {
-        deviceId: testCursor.id,
-        x: testCursor.x,
-        y: testCursor.y,
-        color: testCursor.color,
-        cursorType: testCursor.cursorType,
-        cursorCSS: testCursor.cursorCSS,
-        cursorFile: testCursor.cursorFile,
-        isVisible: true,
-      };
-
-      this.overlayWindow.webContents.send('cursors-instant-update', {
-        cursors: [cursorData],
-        lastActiveDevice: testId,
-        timestamp: performance.now(),
-      });
-
-      setTimeout(() => {
-        this.sendExistingCursorsToRenderer();
-      }, 100);
-    }
-  }
-
   private createOverlayWindow(): void {
     console.log('Creation de la fenetre overlay...');
 
@@ -800,7 +661,6 @@ class MultimouseApp {
       this.cursorTypeDetector.stop();
     }
 
-    globalShortcut.unregisterAll();
     this.saveConfig();
     app.quit();
   }
@@ -815,5 +675,4 @@ process.on('uncaughtException', (_error: Error) => {
 });
 
 process.on('unhandledRejection', (_reason: any) => {});
-
 

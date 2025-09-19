@@ -8,7 +8,6 @@ Application Electron.js pour détecter et utiliser plusieurs souris simultanéme
 - ✅ Curseur indépendant par device (un curseur par souris)
 - ✅ API Raw Input Windows native (C++)
 - ✅ Interface overlay transparente
-- ✅ Raccourcis clavier F1-F4 pour le contrôle
 - ✅ Diagnostics PowerShell intégrés
 
 ## Prérequis
@@ -92,18 +91,11 @@ npm run build
 
 ## Utilisation
 
-### Raccourcis clavier
-
-- **F1** : Démarrer la détection Raw Input
-- **F2** : Arrêter la détection Raw Input
-- **F3** : Forcer le rechargement Raw Input
-- **F4** : Diagnostics complets (PowerShell + Raw Input)
-
 ### Test multi-souris
 
 1. Connectez plusieurs souris USB ou Bluetooth
 2. Lancez l'application (`npm start`)
-3. Appuyez sur **F1** pour démarrer la détection
+3. La détection Raw Input démarre automatiquement
 4. Bougez chaque souris → un curseur indépendant apparaît pour chaque device
 
 ### Sortie console exemple
@@ -213,7 +205,6 @@ npx electron-rebuild --version=26.0.0
 ### Aucune souris détectée
 
 - Vérifiez que vous êtes sur Windows 10/11
-- Testez avec F4 (diagnostics) pour voir les devices disponibles
 - Essayez différentes souris USB/Bluetooth
 
 ### Erreurs de compilation
