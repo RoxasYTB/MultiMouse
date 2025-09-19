@@ -1,6 +1,6 @@
 import { exec } from 'child_process';
 import * as chokidar from 'chokidar';
-import { app, BrowserWindow, Display, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, Display, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -78,6 +78,7 @@ class MultimouseApp {
   private mouseDetector: RawInputMouseDetector;
   private cursorTypeDetector: CursorTypeDetector;
   private fileWatcher?: chokidar.FSWatcher;
+  private tray: Tray | null = null;
 
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
@@ -247,6 +248,7 @@ class MultimouseApp {
       this.calibrateCoordinateMapping();
       this.startMouseInput();
       this.createOverlayWindow();
+      this.createTray();
       this.setupIPC();
 
       screen.on('display-metrics-changed', () => {
@@ -356,13 +358,55 @@ class MultimouseApp {
 
       if (success) {
         this.centerSystemCursor();
-      } else {
       }
     } catch (error) {}
 
     try {
       this.cursorTypeDetector.start();
     } catch (error) {}
+  }
+
+  private createTray(): void {
+    try {
+      const iconPath = path.join(__dirname, '..', 'assets', 'icon.ico');
+      let trayImage: Electron.NativeImage;
+      if (fs.existsSync(iconPath)) {
+        trayImage = nativeImage.createFromPath(iconPath);
+      } else {
+        trayImage = nativeImage.createEmpty();
+      }
+
+      this.tray = new Tray(trayImage);
+      this.tray.setToolTip('Multimouse');
+      this.updateTrayMenu();
+
+      this.tray.on('click', () => {
+        if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+          if (this.overlayWindow.isVisible()) {
+            this.overlayWindow.hide();
+          } else {
+            this.overlayWindow.show();
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Erreur lors de la création de la tray:', error);
+    }
+  }
+
+  private updateTrayMenu(): void {
+    if (!this.tray) return;
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Quitter',
+        click: () => {
+          this.shutdown();
+        },
+      },
+    ]);
+
+    this.tray.setContextMenu(contextMenu);
   }
 
   private centerSystemCursor(): void {
@@ -527,9 +571,8 @@ class MultimouseApp {
     });
 
     this.overlayWindow.on('close', (e) => {
-      console.log('Tentative de fermeture overlay interceptée');
-      e.preventDefault();
-      this.overlayWindow!.hide();
+      console.log("Fermeture de l'application demandée");
+      this.shutdown();
     });
 
     if (process.platform === 'win32') {
