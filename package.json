@@ -11,6 +11,7 @@
     "dev": "npm run build && electron . --dev",
     "compile": "tsc",
     "rebuild": "electron-rebuild",
+    "dist": "electron-builder",
     "install-deps": "npm install",
     "postinstall": "electron-rebuild",
     "watch": "tsc --watch"
