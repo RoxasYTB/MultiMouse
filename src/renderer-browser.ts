@@ -284,12 +284,20 @@ class MultimouseRenderer {
   }
 
   private removeCursor(deviceId: string): void {
+    console.log(`=== RENDERER: REMOVING CURSOR ===`);
+    console.log(`Device ID: ${deviceId}`);
+
     const cursor = this.cursors.get(deviceId);
     if (cursor) {
+      console.log(`Curseur trouvé, suppression de l'élément DOM...`);
       cursor.element.remove();
       this.cursors.delete(deviceId);
       this.lastPositions.delete(deviceId);
       this.updateInfoPanel();
+      console.log(`Curseur supprimé avec succès. Curseurs restants: ${this.cursors.size}`);
+    } else {
+      console.log(`Curseur non trouvé pour le device: ${deviceId}`);
+      console.log(`Curseurs actuels:`, Array.from(this.cursors.keys()));
     }
   }
 

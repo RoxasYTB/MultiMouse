@@ -197,11 +197,16 @@ class MultimouseApp {
   }
 
   private setupMouseEvents(): void {
-    this.mouseDetector.on('deviceAdded', () => {
+    this.mouseDetector.on('deviceAdded', (device: MouseDevice) => {
+      console.log(`=== DEVICE ADDED ===`);
+      console.log(`Device ID: ${device.id}, Name: ${device.name}`);
       this.updateDeviceDisplay();
     });
 
     this.mouseDetector.on('deviceRemoved', (device: MouseDevice) => {
+      console.log(`=== DEVICE REMOVED ===`);
+      console.log(`Device ID: ${device.id}, Name: ${device.name}`);
+      console.log(`Suppression du curseur associé...`);
       this.removeCursor(device.id);
       this.updateDeviceDisplay();
     });
@@ -522,18 +527,25 @@ class MultimouseApp {
 
   private removeCursor(deviceId: string): void {
     if (this.cursors.has(deviceId)) {
+      console.log(`=== REMOVING CURSOR ===`);
+      console.log(`Suppression du curseur pour device: ${deviceId}`);
+
       this.cursors.delete(deviceId);
 
       if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+        console.log(`Envoi de l'événement cursor-removed au renderer...`);
         this.overlayWindow.webContents.send('cursor-removed', deviceId);
       }
 
       if (this.lastActiveDevice === deviceId) {
         const remainingCursors = Array.from(this.cursors.keys());
         this.lastActiveDevice = remainingCursors.length > 0 ? remainingCursors[0] : null;
+        console.log(`Device actif changé vers: ${this.lastActiveDevice || 'aucun'}`);
       }
 
       this.updateDeviceDisplay();
+    } else {
+      console.log(`Tentative de suppression d'un curseur inexistant: ${deviceId}`);
     }
   }
 

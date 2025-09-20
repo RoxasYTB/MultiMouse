@@ -6,7 +6,9 @@ export class RawInputMouseDetector extends EventEmitter {
   private isActive: boolean = false;
   private devices: Map<string, MouseDevice> = new Map();
   private messageProcessInterval: NodeJS.Timeout | null = null;
+  private cleanupInterval: NodeJS.Timeout | null = null;
   public rawInputModule: RawInputModuleInterface | null = null;
+  private readonly DEVICE_TIMEOUT = 5000;
 
   constructor() {
     super();
@@ -42,6 +44,10 @@ export class RawInputMouseDetector extends EventEmitter {
         }
       }, 16);
 
+      this.cleanupInterval = setInterval(() => {
+        this.cleanupInactiveDevices();
+      }, 2000);
+
       setTimeout(() => {
         this.simulateTestMovement();
       }, 1000);
@@ -67,6 +73,11 @@ export class RawInputMouseDetector extends EventEmitter {
     if (this.messageProcessInterval) {
       clearInterval(this.messageProcessInterval);
       this.messageProcessInterval = null;
+    }
+
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
 
     if (this.rawInputModule) {
@@ -167,6 +178,8 @@ export class RawInputMouseDetector extends EventEmitter {
 
   private handleDeviceChange(deviceData: DeviceChangeData): void {
     const deviceKey = `device_${deviceData.handle}`;
+    console.log(`=== DEVICE CHANGE EVENT ===`);
+    console.log(`Action: ${deviceData.action}, Device: ${deviceKey}, Name: ${deviceData.name}`);
 
     if (deviceData.action === 'added') {
       if (!this.devices.has(deviceKey)) {
@@ -181,15 +194,17 @@ export class RawInputMouseDetector extends EventEmitter {
         };
 
         this.devices.set(deviceKey, device);
-
+        console.log(`Device added: ${deviceKey} - ${deviceData.name}`);
         this.emit('deviceAdded', device);
       }
     } else if (deviceData.action === 'removed') {
       const device = this.devices.get(deviceKey);
       if (device) {
+        console.log(`Device removed: ${deviceKey} - ${device.name}`);
         this.devices.delete(deviceKey);
-
         this.emit('deviceRemoved', device);
+      } else {
+        console.log(`Tentative de suppression d'un device inexistant: ${deviceKey}`);
       }
     }
   }
@@ -234,8 +249,28 @@ export class RawInputMouseDetector extends EventEmitter {
   public removeDevice(deviceId: string): void {
     if (this.devices.has(deviceId)) {
       const device = this.devices.get(deviceId)!;
+      console.log(`Removing device manually: ${deviceId} - ${device.name}`);
       this.devices.delete(deviceId);
 
+      this.emit('deviceRemoved', device);
+    }
+  }
+
+  private cleanupInactiveDevices(): void {
+    const currentTime = Date.now();
+    const devicesToRemove: string[] = [];
+
+    for (const [deviceId, device] of this.devices) {
+      if (currentTime - device.lastSeen > this.DEVICE_TIMEOUT) {
+        console.log(`Device inactif détecté: ${deviceId} - ${device.name} (inactif depuis ${(currentTime - device.lastSeen) / 1000}s)`);
+        devicesToRemove.push(deviceId);
+      }
+    }
+
+    for (const deviceId of devicesToRemove) {
+      const device = this.devices.get(deviceId)!;
+      console.log(`Suppression automatique du device inactif: ${deviceId} - ${device.name}`);
+      this.devices.delete(deviceId);
       this.emit('deviceRemoved', device);
     }
   }
