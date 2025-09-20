@@ -1,6 +1,6 @@
 {
   "name": "multimouse-electron",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Application Multimouse stable avec Electron.js",
   "main": "dist/main.js",
   "scripts": {
@@ -13,6 +13,10 @@
     "compile": "tsc",
     "rebuild": "electron-rebuild",
     "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable",
+    "dist:zip": "electron-builder --win zip",
+    "dist:all": "electron-builder --win portable zip",
     "install-deps": "npm install",
     "postinstall": "electron-builder install-app-deps",
     "watch": "tsc --watch"
@@ -47,31 +51,64 @@
     "typescript": "^5.9.2"
   },
   "build": {
-    "appId": "com.yohan.multimouse",
-    "productName": "Multimouse",
+    "appId": "com.multimouse.app",
+    "productName": "MultiMouse",
+    "asar": true,
     "directories": {
-      "output": "executables"
+      "output": "dist"
     },
     "files": [
-      "dist/**/*",
+      "dist/*.js",
+      "dist/*.d.ts",
       "overlay.html",
       "overlay.css",
       "config.json",
       "build/Release/multimouse_raw_input.node",
-      "assets/**/*"
+      "assets/**/*",
+      "!**/node_modules/*/{test,__tests__,example,examples}/**",
+      "!**/*.map",
+      "!dist/*.exe",
+      "!dist/*.zip",
+      "!dist/win-unpacked",
+      "!**/{*.ts,*.tsx}",
+      "!**/{*.test.*,*.spec.*}",
+      "!**/README*",
+      "!**/readme*",
+      "!**/CHANGELOG*",
+      "!**/changelog*",
+      "!**/.git*",
+      "!**/docs/**",
+      "!**/test/**",
+      "!**/tests/**"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
+      "target": [
+        "portable",
+        "zip"
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "MultiMouse-${version}-${arch}.${ext}"
     },
-    "asar": true,
     "asarUnpack": [
       "**/*.node",
       "assets/**/*"
     ],
-    "compression": "maximum",
+    "compression": "store",
+    "nsis": {
+      "oneClick": false
+    },
+    "electronLanguages": [
+      "en",
+      "fr"
+    ],
     "extraResources": [
       "assets/icon.ico"
-    ]
+    ],
+    "extraMetadata": {
+      "electronLocales": [
+        "en-US",
+        "fr"
+      ]
+    }
   }
 }

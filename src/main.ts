@@ -20,6 +20,7 @@ const DEFAULT_CONFIG: AppConfig = {
   cursorColors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
   highPerformanceMode: true,
   precisePositioning: true,
+  allowTrayLeftClick: false,
 };
 
 interface CursorState {
@@ -80,6 +81,8 @@ class MultimouseApp {
   private fileWatcher?: chokidar.FSWatcher;
   private tray: Tray | null = null;
 
+  private allowTrayLeftClick: boolean = false;
+
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
     this.centerX = this.screenWidth / 2;
@@ -92,6 +95,8 @@ class MultimouseApp {
     this.setupMouseEvents();
     this.setupCursorTypeEvents();
     this.loadConfig();
+
+    this.allowTrayLeftClick = !!this.config.allowTrayLeftClick;
     this.setupAppEvents();
     this.setupFileWatcher();
     this.initHighPerformanceLoop();
@@ -400,6 +405,11 @@ class MultimouseApp {
       this.updateTrayMenu();
 
       this.tray.on('click', () => {
+        if (!this.allowTrayLeftClick) {
+          console.log('Left-click on tray ignored (allowTrayLeftClick=false)');
+          return;
+        }
+
         if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
           if (this.overlayWindow.isVisible()) {
             this.overlayWindow.hide();
