@@ -10,5 +10,6 @@
     "#FFFF00"
   ],
   "highPerformanceMode": true,
-  "precisePositioning": true
+  "precisePositioning": true,
+  "allowTrayLeftClick": false
 }

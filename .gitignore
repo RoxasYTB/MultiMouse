@@ -78,3 +78,16 @@ jspm_packages/
 
 # Package locks (keep package-lock.json but ignore yarn.lock if not using yarn)
 # yarn.lock
+
+# Test and development files
+test_*.js
+validate_*.js
+*_test.js
+*.test.js
+debug_*.ts
+*_debug.ts
+*DISCONNECTION*.md
+*IMPROVEMENT*.md
+*_old.*
+*_backup.*
+*.bak

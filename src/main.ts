@@ -537,8 +537,12 @@ class MultimouseApp {
 
   private removeCursor(deviceId: string): void {
     if (this.cursors.has(deviceId)) {
+      const cursor = this.cursors.get(deviceId)!;
       console.log(`=== REMOVING CURSOR ===`);
       console.log(`Suppression du curseur pour device: ${deviceId}`);
+      console.log(`Device name: ${cursor.deviceName}`);
+      console.log(`Last update: ${new Date(cursor.lastUpdate).toLocaleTimeString()}`);
+      console.log(`Total movement: ${cursor.totalMovement.toFixed(2)}`);
 
       this.cursors.delete(deviceId);
 
@@ -554,8 +558,10 @@ class MultimouseApp {
       }
 
       this.updateDeviceDisplay();
+
+      console.log(`Curseur ${deviceId} supprimé avec succès. Curseurs restants: ${this.cursors.size}`);
     } else {
-      console.log(`Tentative de suppression d'un curseur inexistant: ${deviceId}`);
+      console.log(`⚠️ Tentative de suppression d'un curseur inexistant: ${deviceId}`);
     }
   }
 
@@ -680,6 +686,44 @@ class MultimouseApp {
       this.resetSensitivity();
       return this.config.sensitivity;
     });
+
+    ipcMain.handle('force-scan-devices', () => {
+      console.log('[IPC] Force scan des périphériques demandé');
+
+      return { success: true, message: 'Surveillance USB automatique active' };
+    });
+
+    ipcMain.handle('get-monitored-devices', () => {
+      const devices = this.mouseDetector.getMonitoredDevices();
+      console.log('[IPC] Périphériques surveillés:', devices.length);
+      return devices;
+    });
+
+    ipcMain.handle('get-active-cursors', () => {
+      const cursors = Array.from(this.cursors.values());
+      console.log('[IPC] Curseurs actifs:', cursors.length);
+      return cursors.map((cursor) => ({
+        id: cursor.id,
+        deviceName: cursor.deviceName,
+        x: cursor.x,
+        y: cursor.y,
+        lastUpdate: cursor.lastUpdate,
+        hasMovedOnce: cursor.hasMovedOnce,
+        totalMovement: cursor.totalMovement,
+      }));
+    });
+
+    ipcMain.handle('clear-disconnected-cursors', () => {
+      console.log('[IPC] Nettoyage des curseurs déconnectés demandé');
+      const clearedCount = this.clearDisconnectedCursors();
+      return { success: true, clearedCount, message: `${clearedCount} curseurs nettoyés` };
+    });
+
+    ipcMain.handle('simulate-device-disconnect', (_, deviceId: string) => {
+      console.log(`[IPC] Simulation de déconnexion demandée pour: ${deviceId}`);
+      this.simulateDeviceDisconnect(deviceId);
+      return { success: true, message: `Déconnexion simulée pour ${deviceId}` };
+    });
   }
 
   private increaseSensitivity(): void {
@@ -719,6 +763,44 @@ class MultimouseApp {
 
   private saveConfig(): void {
     fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
+  }
+
+  private clearDisconnectedCursors(): number {
+    const connectedDevices = this.mouseDetector.getConnectedDevices();
+    const connectedDeviceIds = new Set(connectedDevices.map((d) => d.id));
+
+    let clearedCount = 0;
+    const cursorsToRemove: string[] = [];
+
+    for (const [cursorId, cursor] of this.cursors) {
+      if (!connectedDeviceIds.has(cursorId)) {
+        console.log(`[ClearCursors] Curseur orphelin détecté: ${cursorId} - ${cursor.deviceName}`);
+        cursorsToRemove.push(cursorId);
+      }
+    }
+
+    for (const cursorId of cursorsToRemove) {
+      this.removeCursor(cursorId);
+      clearedCount++;
+    }
+
+    console.log(`[ClearCursors] ${clearedCount} curseurs orphelins supprimés`);
+    return clearedCount;
+  }
+
+  private simulateDeviceDisconnect(deviceId: string): void {
+    console.log(`[SimulateDisconnect] Simulation de déconnexion pour: ${deviceId}`);
+
+    if (this.cursors.has(deviceId)) {
+      console.log(`[SimulateDisconnect] Suppression du curseur: ${deviceId}`);
+      this.removeCursor(deviceId);
+    }
+
+    if (this.mouseDetector && typeof this.mouseDetector.removeDevice === 'function') {
+      this.mouseDetector.removeDevice(deviceId);
+    }
+
+    this.updateDeviceDisplay();
   }
 
   public shutdown(): void {
