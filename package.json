@@ -7,13 +7,14 @@
     "lint": "eslint . --ext .ts,.tsx",
     "clean": "eslint . --ext .ts,.tsx --fix && ts-prune | tee ts-prune-report.txt",
     "build": "tsc && electron-rebuild",
+    "lastBuild": "npx electron-rebuild -f -w multimouse_raw_input --arch=x64 --runtime=electron --version 26.6.10",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "compile": "tsc",
     "rebuild": "electron-rebuild",
     "dist": "electron-builder",
     "install-deps": "npm install",
-    "postinstall": "electron-rebuild",
+    "postinstall": "electron-builder install-app-deps",
     "watch": "tsc --watch"
   },
   "keywords": [
@@ -25,17 +26,16 @@
   "license": "MIT",
   "gypfile": true,
   "dependencies": {
-    "electron": "^26.0.0",
     "eslint-plugin-unused-imports": "^4.2.0",
     "nan": "^2.23.0",
     "typescript-eslint": "^8.44.0",
+    "chokidar": "^4.0.3",
     "ws": "^8.18.3"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.2",
     "@types/electron": "^1.4.38",
     "@types/node": "^24.5.2",
-    "chokidar": "^4.0.3",
+    "electron": "^26.0.0",
     "electron-builder": "^24.0.0",
     "electron-rebuild": "^3.2.9",
     "jscodeshift": "^17.3.0",
@@ -50,18 +50,28 @@
     "appId": "com.yohan.multimouse",
     "productName": "Multimouse",
     "directories": {
-      "output": "dist-app"
+      "output": "executables"
     },
     "files": [
       "dist/**/*",
       "overlay.html",
       "overlay.css",
       "config.json",
-      "build/Release/multimouse_raw_input.node"
+      "build/Release/multimouse_raw_input.node",
+      "assets/**/*"
     ],
     "win": {
       "target": "nsis",
-      "icon": "icon.ico"
-    }
+      "icon": "assets/icon.ico"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "assets/**/*"
+    ],
+    "compression": "maximum",
+    "extraResources": [
+      "assets/icon.ico"
+    ]
   }
 }

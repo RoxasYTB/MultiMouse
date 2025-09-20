@@ -6,7 +6,7 @@ yarn-error.log*
 
 # Build outputs
 build/
-dist/
+dist*/
 out/
 bin/
 win32-x64-116/

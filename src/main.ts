@@ -368,11 +368,25 @@ class MultimouseApp {
 
   private createTray(): void {
     try {
-      const iconPath = path.join(__dirname, '..', 'assets', 'icon.ico');
+      let iconPath = path.join(__dirname, '..', 'assets', 'icon.ico');
+
+      if (!fs.existsSync(iconPath)) {
+        iconPath = path.join(process.resourcesPath, 'assets', 'icon.ico');
+      }
+
+      if (!fs.existsSync(iconPath)) {
+        iconPath = path.join(process.resourcesPath, 'app', 'assets', 'icon.ico');
+      }
+
+      console.log('Tentative de chargement icône tray:', iconPath);
+      console.log('Icône existe:', fs.existsSync(iconPath));
+
       let trayImage: Electron.NativeImage;
       if (fs.existsSync(iconPath)) {
         trayImage = nativeImage.createFromPath(iconPath);
+        console.log('Icône tray chargée avec succès');
       } else {
+        console.log('Icône tray non trouvée, utilisation icône vide');
         trayImage = nativeImage.createEmpty();
       }
 
@@ -547,6 +561,7 @@ class MultimouseApp {
         nodeIntegration: true,
         contextIsolation: false,
         webSecurity: false,
+        devTools: true,
       },
     });
 
@@ -559,6 +574,11 @@ class MultimouseApp {
 
       console.log('Overlay window visible:', !this.overlayWindow!.isDestroyed());
       console.log('Devices connectes:', this.mouseDetector.getDeviceCount());
+
+      let needDevTools = false;
+      if (needDevTools) {
+        this.overlayWindow!.webContents.openDevTools({ mode: 'detach' });
+      }
 
       setTimeout(() => {
         this.sendExistingCursorsToRenderer();
