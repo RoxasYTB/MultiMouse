@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import * as path from 'path';
-import { SimpleUSBMonitor } from './simple_usb_monitor';
+import { ImprovedUSBMonitor } from './improved_usb_monitor';
 import { DeviceChangeData, MouseDevice, MouseMoveData, RawInputModuleInterface } from './types';
 
 export class RawInputMouseDetector extends EventEmitter {
@@ -10,28 +10,39 @@ export class RawInputMouseDetector extends EventEmitter {
 
   public rawInputModule: RawInputModuleInterface | null = null;
 
-  private usbMonitor: SimpleUSBMonitor;
+  private usbMonitor: ImprovedUSBMonitor;
 
   constructor() {
     super();
-    this.usbMonitor = new SimpleUSBMonitor();
+    this.usbMonitor = new ImprovedUSBMonitor();
     this.setupUSBMonitorEvents();
   }
 
   private setupUSBMonitorEvents(): void {
-    this.usbMonitor.on('mouseDisconnected', (deviceId: string) => {
-      const devicesToRemove = Array.from(this.devices.keys());
+    this.usbMonitor.on('mouseDisconnected', (data: { deviceId: string; name: string }) => {
+      console.log(`USB Monitor: Déconnexion détectée - ${data.name}`);
 
-      for (const rawDeviceId of devicesToRemove) {
-        const device = this.devices.get(rawDeviceId);
-        if (device) {
-          this.devices.delete(rawDeviceId);
-          this.emit('deviceRemoved', device);
-        }
-      }
+      setTimeout(() => {
+        this.removeAllInactiveDevices();
+      }, 500);
     });
 
-    this.usbMonitor.on('mouseConnected', (deviceId: string) => {});
+    this.usbMonitor.on('mouseConnected', (data: { deviceId: string; name: string }) => {
+      console.log(`USB Monitor: Nouvelle souris connectée - ${data.name}`);
+    });
+  }
+
+  private removeAllInactiveDevices(): void {
+    const devicesToRemove = Array.from(this.devices.keys());
+
+    for (const rawDeviceId of devicesToRemove) {
+      const device = this.devices.get(rawDeviceId);
+      if (device) {
+        this.devices.delete(rawDeviceId);
+        console.log(`Suppression device suite à déconnexion USB: ${device.id}`);
+        this.emit('deviceRemoved', device);
+      }
+    }
   }
 
   public start(): boolean {
