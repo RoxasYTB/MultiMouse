@@ -39,7 +39,7 @@ interface CursorState {
   totalMovement: number;
 }
 
-class BuenoxApp {
+class BuenoxAppElectron {
   private overlayWindow: BrowserWindow | null = null;
   private config: AppConfig = { ...DEFAULT_CONFIG };
   private configPath: string;
@@ -833,7 +833,7 @@ class BuenoxApp {
   }
 }
 
-const BuenoxApp = new BuenoxApp();
+const BuenoxApp = new BuenoxAppElectron();
 
 console.log('Buenox Electron app started.');
 
