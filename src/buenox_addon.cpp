@@ -32,6 +32,57 @@ static Nan::Persistent<v8::Function> deviceCallback;
 static std::queue<MouseEvent> eventQueue;
 static std::mutex eventMutex;
 static int messageCount = 0;
+static HCURSOR originalCursor = nullptr;
+static HCURSOR transparentCursor = nullptr;
+static bool cursorHidden = false;
+
+static HCURSOR originalCursors[10];
+static bool cursorsSaved = false;
+
+BOOL WINAPI ConsoleCtrlHandler(DWORD ctrlType) {
+    switch (ctrlType) {
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_CLOSE_EVENT:
+        case CTRL_LOGOFF_EVENT:
+        case CTRL_SHUTDOWN_EVENT:
+
+            if (cursorHidden) {
+
+                SystemParametersInfo(SPI_SETCURSORS, 0, NULL, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+
+                HCURSOR defaultArrow = LoadCursor(NULL, IDC_ARROW);
+                HCURSOR defaultIBeam = LoadCursor(NULL, IDC_IBEAM);
+                HCURSOR defaultHand = LoadCursor(NULL, IDC_HAND);
+                HCURSOR defaultWait = LoadCursor(NULL, IDC_WAIT);
+                HCURSOR defaultCross = LoadCursor(NULL, IDC_CROSS);
+                HCURSOR defaultSizeWE = LoadCursor(NULL, IDC_SIZEWE);
+                HCURSOR defaultSizeNS = LoadCursor(NULL, IDC_SIZENS);
+                HCURSOR defaultSizeNESW = LoadCursor(NULL, IDC_SIZENESW);
+                HCURSOR defaultSizeNWSE = LoadCursor(NULL, IDC_SIZENWSE);
+                HCURSOR defaultNo = LoadCursor(NULL, IDC_NO);
+
+                if (defaultArrow) SetSystemCursor(CopyCursor(defaultArrow), 32512);
+                if (defaultIBeam) SetSystemCursor(CopyCursor(defaultIBeam), 32513);
+                if (defaultHand) SetSystemCursor(CopyCursor(defaultHand), 32649);
+                if (defaultWait) SetSystemCursor(CopyCursor(defaultWait), 32514);
+                if (defaultCross) SetSystemCursor(CopyCursor(defaultCross), 32515);
+                if (defaultSizeWE) SetSystemCursor(CopyCursor(defaultSizeWE), 32644);
+                if (defaultSizeNS) SetSystemCursor(CopyCursor(defaultSizeNS), 32645);
+                if (defaultSizeNESW) SetSystemCursor(CopyCursor(defaultSizeNESW), 32642);
+                if (defaultSizeNWSE) SetSystemCursor(CopyCursor(defaultSizeNWSE), 32643);
+                if (defaultNo) SetSystemCursor(CopyCursor(defaultNo), 32648);
+
+                SystemParametersInfo(SPI_SETCURSORS, 0, NULL, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+                SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, SPI_SETCURSORS, 0);
+
+                ShowCursor(TRUE);
+                cursorHidden = false;
+            }
+            return FALSE;
+    }
+    return FALSE;
+}
 
 std::string GetDeviceName(HANDLE hDevice) {
     UINT nameSize;
@@ -71,6 +122,25 @@ std::string GetDeviceName(HANDLE hDevice) {
         }
     }
     return "Unknown Device";
+}
+
+HCURSOR CreateTransparentCursor() {
+
+    const int width = 1;
+    const int height = 1;
+
+    BYTE andMask[1] = { 0xFF };
+    BYTE xorMask[1] = { 0x00 };
+
+    return CreateCursor(
+        GetModuleHandle(nullptr),
+        0,
+        0,
+        width,
+        height,
+        andMask,
+        xorMask
+    );
 }
 
 LRESULT CALLBACK RawInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -241,6 +311,10 @@ NAN_METHOD(StartRawInput) {
         Nan::ThrowError("Failed to register raw input devices");
         return;
     } else {
+
+    }
+
+    if (!SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE)) {
 
     }
 
@@ -415,6 +489,198 @@ NAN_METHOD(ProcessMessages) {
     info.GetReturnValue().Set(Nan::New<v8::Number>(count));
 }
 
+NAN_METHOD(HideSystemCursor) {
+    if (!cursorHidden) {
+
+        originalCursor = GetCursor();
+
+        if (!transparentCursor) {
+            transparentCursor = CreateTransparentCursor();
+        }
+
+        if (transparentCursor) {
+
+            if (!cursorsSaved) {
+                originalCursors[0] = LoadCursor(NULL, IDC_ARROW);
+                originalCursors[1] = LoadCursor(NULL, IDC_IBEAM);
+                originalCursors[2] = LoadCursor(NULL, IDC_HAND);
+                originalCursors[3] = LoadCursor(NULL, IDC_WAIT);
+                originalCursors[4] = LoadCursor(NULL, IDC_CROSS);
+                originalCursors[5] = LoadCursor(NULL, IDC_SIZEWE);
+                originalCursors[6] = LoadCursor(NULL, IDC_SIZENS);
+                originalCursors[7] = LoadCursor(NULL, IDC_SIZENESW);
+                originalCursors[8] = LoadCursor(NULL, IDC_SIZENWSE);
+                originalCursors[9] = LoadCursor(NULL, IDC_NO);
+                cursorsSaved = true;
+            }
+
+            SetSystemCursor(CopyCursor(transparentCursor), 32512);
+            SetSystemCursor(CopyCursor(transparentCursor), 32513);
+            SetSystemCursor(CopyCursor(transparentCursor), 32649);
+            SetSystemCursor(CopyCursor(transparentCursor), 32514);
+            SetSystemCursor(CopyCursor(transparentCursor), 32515);
+            SetSystemCursor(CopyCursor(transparentCursor), 32644);
+            SetSystemCursor(CopyCursor(transparentCursor), 32645);
+            SetSystemCursor(CopyCursor(transparentCursor), 32642);
+            SetSystemCursor(CopyCursor(transparentCursor), 32643);
+            SetSystemCursor(CopyCursor(transparentCursor), 32648);
+
+            int cursorCount = ShowCursor(FALSE);
+            while (cursorCount >= 0) {
+                cursorCount = ShowCursor(FALSE);
+            }
+
+            cursorHidden = true;
+            info.GetReturnValue().Set(Nan::New<v8::Boolean>(true));
+        } else {
+            info.GetReturnValue().Set(Nan::New<v8::Boolean>(false));
+        }
+    } else {
+        info.GetReturnValue().Set(Nan::New<v8::Boolean>(true));
+    }
+}
+
+NAN_METHOD(ShowSystemCursor) {
+    if (cursorHidden) {
+
+        SystemParametersInfo(SPI_SETCURSORS, 0, NULL, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+
+        HCURSOR defaultArrow = LoadCursor(NULL, IDC_ARROW);
+        HCURSOR defaultIBeam = LoadCursor(NULL, IDC_IBEAM);
+        HCURSOR defaultHand = LoadCursor(NULL, IDC_HAND);
+        HCURSOR defaultWait = LoadCursor(NULL, IDC_WAIT);
+        HCURSOR defaultCross = LoadCursor(NULL, IDC_CROSS);
+        HCURSOR defaultSizeWE = LoadCursor(NULL, IDC_SIZEWE);
+        HCURSOR defaultSizeNS = LoadCursor(NULL, IDC_SIZENS);
+        HCURSOR defaultSizeNESW = LoadCursor(NULL, IDC_SIZENESW);
+        HCURSOR defaultSizeNWSE = LoadCursor(NULL, IDC_SIZENWSE);
+        HCURSOR defaultNo = LoadCursor(NULL, IDC_NO);
+
+        if (defaultArrow) SetSystemCursor(CopyCursor(defaultArrow), 32512);
+        if (defaultIBeam) SetSystemCursor(CopyCursor(defaultIBeam), 32513);
+        if (defaultHand) SetSystemCursor(CopyCursor(defaultHand), 32649);
+        if (defaultWait) SetSystemCursor(CopyCursor(defaultWait), 32514);
+        if (defaultCross) SetSystemCursor(CopyCursor(defaultCross), 32515);
+        if (defaultSizeWE) SetSystemCursor(CopyCursor(defaultSizeWE), 32644);
+        if (defaultSizeNS) SetSystemCursor(CopyCursor(defaultSizeNS), 32645);
+        if (defaultSizeNESW) SetSystemCursor(CopyCursor(defaultSizeNESW), 32642);
+        if (defaultSizeNWSE) SetSystemCursor(CopyCursor(defaultSizeNWSE), 32643);
+        if (defaultNo) SetSystemCursor(CopyCursor(defaultNo), 32648);
+
+        SystemParametersInfo(SPI_SETCURSORS, 0, NULL, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+
+        SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, SPI_SETCURSORS, 0);
+
+        InvalidateRect(NULL, NULL, TRUE);
+        UpdateWindow(GetDesktopWindow());
+
+        int cursorCount = ShowCursor(TRUE);
+        while (cursorCount < 0) {
+            cursorCount = ShowCursor(TRUE);
+        }
+
+        cursorHidden = false;
+        info.GetReturnValue().Set(Nan::New<v8::Boolean>(true));
+    } else {
+        info.GetReturnValue().Set(Nan::New<v8::Boolean>(false));
+    }
+}
+
+NAN_METHOD(GetCursorState) {
+    CURSORINFO cursorInfo;
+    cursorInfo.cbSize = sizeof(CURSORINFO);
+
+    if (GetCursorInfo(&cursorInfo)) {
+        v8::Local<v8::Object> result = Nan::New<v8::Object>();
+
+        std::string cursorType = "unknown";
+        HCURSOR currentCursor = cursorInfo.hCursor;
+
+        if (currentCursor == LoadCursor(NULL, IDC_ARROW)) {
+            cursorType = "arrow";
+        } else if (currentCursor == LoadCursor(NULL, IDC_IBEAM)) {
+            cursorType = "ibeam";
+        } else if (currentCursor == LoadCursor(NULL, IDC_HAND)) {
+            cursorType = "hand";
+        } else if (currentCursor == LoadCursor(NULL, IDC_WAIT)) {
+            cursorType = "wait";
+        } else if (currentCursor == LoadCursor(NULL, IDC_CROSS)) {
+            cursorType = "cross";
+        } else if (currentCursor == LoadCursor(NULL, IDC_SIZEWE)) {
+            cursorType = "resize-ew";
+        } else if (currentCursor == LoadCursor(NULL, IDC_SIZENS)) {
+            cursorType = "resize-ns";
+        } else if (currentCursor == LoadCursor(NULL, IDC_SIZENESW)) {
+            cursorType = "resize-nesw";
+        } else if (currentCursor == LoadCursor(NULL, IDC_SIZENWSE)) {
+            cursorType = "resize-nwse";
+        } else if (currentCursor == LoadCursor(NULL, IDC_NO)) {
+            cursorType = "not-allowed";
+        } else if (!cursorHidden) {
+
+            cursorType = "system";
+        } else {
+
+            cursorType = "hidden";
+        }
+
+        Nan::Set(result, Nan::New("type").ToLocalChecked(), Nan::New(cursorType.c_str()).ToLocalChecked());
+        Nan::Set(result, Nan::New("visible").ToLocalChecked(), Nan::New<v8::Boolean>(!cursorHidden));
+        Nan::Set(result, Nan::New("x").ToLocalChecked(), Nan::New<v8::Number>(cursorInfo.ptScreenPos.x));
+        Nan::Set(result, Nan::New("y").ToLocalChecked(), Nan::New<v8::Number>(cursorInfo.ptScreenPos.y));
+
+        info.GetReturnValue().Set(result);
+    } else {
+        info.GetReturnValue().Set(Nan::Null());
+    }
+}
+
+NAN_METHOD(EmergencyRestoreCursors) {
+
+    SystemParametersInfo(SPI_SETCURSORS, 0, NULL, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+
+    HCURSOR defaultArrow = LoadCursor(NULL, IDC_ARROW);
+    HCURSOR defaultIBeam = LoadCursor(NULL, IDC_IBEAM);
+    HCURSOR defaultHand = LoadCursor(NULL, IDC_HAND);
+    HCURSOR defaultWait = LoadCursor(NULL, IDC_WAIT);
+    HCURSOR defaultCross = LoadCursor(NULL, IDC_CROSS);
+    HCURSOR defaultSizeWE = LoadCursor(NULL, IDC_SIZEWE);
+    HCURSOR defaultSizeNS = LoadCursor(NULL, IDC_SIZENS);
+    HCURSOR defaultSizeNESW = LoadCursor(NULL, IDC_SIZENESW);
+    HCURSOR defaultSizeNWSE = LoadCursor(NULL, IDC_SIZENWSE);
+    HCURSOR defaultNo = LoadCursor(NULL, IDC_NO);
+
+    if (defaultArrow) SetSystemCursor(CopyCursor(defaultArrow), 32512);
+    if (defaultIBeam) SetSystemCursor(CopyCursor(defaultIBeam), 32513);
+    if (defaultHand) SetSystemCursor(CopyCursor(defaultHand), 32649);
+    if (defaultWait) SetSystemCursor(CopyCursor(defaultWait), 32514);
+    if (defaultCross) SetSystemCursor(CopyCursor(defaultCross), 32515);
+    if (defaultSizeWE) SetSystemCursor(CopyCursor(defaultSizeWE), 32644);
+    if (defaultSizeNS) SetSystemCursor(CopyCursor(defaultSizeNS), 32645);
+    if (defaultSizeNESW) SetSystemCursor(CopyCursor(defaultSizeNESW), 32642);
+    if (defaultSizeNWSE) SetSystemCursor(CopyCursor(defaultSizeNWSE), 32643);
+    if (defaultNo) SetSystemCursor(CopyCursor(defaultNo), 32648);
+
+    SystemParametersInfo(SPI_SETCURSORS, 0, NULL, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+    SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, SPI_SETCURSORS, 0);
+    InvalidateRect(NULL, NULL, TRUE);
+    UpdateWindow(GetDesktopWindow());
+
+    int cursorCount = 0;
+    do {
+        cursorCount = ShowCursor(TRUE);
+    } while (cursorCount < 0);
+
+    cursorHidden = false;
+    info.GetReturnValue().Set(Nan::New<v8::Boolean>(true));
+}
+
+NAN_METHOD(SetupShutdownHandler) {
+
+    BOOL result = SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+    info.GetReturnValue().Set(Nan::New<v8::Boolean>(result));
+}
+
 NAN_MODULE_INIT(Init) {
     Nan::Set(target, Nan::New("setCallbacks").ToLocalChecked(),
         Nan::GetFunction(Nan::New<v8::FunctionTemplate>(SetCallbacks)).ToLocalChecked());
@@ -442,6 +708,21 @@ NAN_MODULE_INIT(Init) {
 
     Nan::Set(target, Nan::New("getSystemCursorPos").ToLocalChecked(),
         Nan::GetFunction(Nan::New<v8::FunctionTemplate>(GetSystemCursorPos)).ToLocalChecked());
+
+    Nan::Set(target, Nan::New("hideSystemCursor").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(HideSystemCursor)).ToLocalChecked());
+
+    Nan::Set(target, Nan::New("showSystemCursor").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(ShowSystemCursor)).ToLocalChecked());
+
+    Nan::Set(target, Nan::New("getCursorState").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(GetCursorState)).ToLocalChecked());
+
+    Nan::Set(target, Nan::New("emergencyRestoreCursors").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(EmergencyRestoreCursors)).ToLocalChecked());
+
+    Nan::Set(target, Nan::New("setupShutdownHandler").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(SetupShutdownHandler)).ToLocalChecked());
 }
 
 NODE_MODULE(Buenox_raw_input, Init)

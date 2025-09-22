@@ -12,6 +12,8 @@ if (process.platform === 'win32') {
   exec('chcp 65001');
 }
 
+const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+
 const DEFAULT_CONFIG: AppConfig = {
   sensitivity: 1.5,
   refreshRate: 1,
@@ -82,6 +84,7 @@ class BuenoxAppElectron {
   private tray: Tray | null = null;
 
   private allowTrayLeftClick: boolean = false;
+  private cursorHidden: boolean = false;
 
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
@@ -91,6 +94,27 @@ class BuenoxAppElectron {
 
     this.mouseDetector = new RawInputMouseDetector();
     this.cursorTypeDetector = new CursorTypeDetector();
+
+    console.log('Masquage du curseur système...');
+    try {
+      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+      const hideResult = addon.hideSystemCursor();
+      this.cursorHidden = hideResult || false;
+      console.log('Curseur système masqué:', hideResult);
+
+      try {
+        const shutdownHandlerResult = addon.setupShutdownHandler();
+        console.log('Gestionnaire de fermeture Windows activé:', shutdownHandlerResult);
+      } catch (handlerError) {
+        console.warn("Impossible d'activer le gestionnaire de fermeture Windows:", handlerError);
+      }
+
+      const initialCursorState = addon.getCursorState();
+      console.log('État initial du curseur:', initialCursorState.type);
+    } catch (error) {
+      console.error('Erreur lors du masquage du curseur système:', error);
+      this.cursorHidden = false;
+    }
 
     this.setupMouseEvents();
     this.setupCursorTypeEvents();
@@ -808,6 +832,41 @@ class BuenoxAppElectron {
 
     this.isShuttingDown = true;
 
+    console.log('Restauration du curseur système...');
+    try {
+      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+      if (this.cursorHidden) {
+        const showResult = addon.showSystemCursor();
+        console.log('Curseur système restauré:', showResult);
+
+        if (!showResult) {
+          console.log("Échec de la restauration automatique, tentative de restauration d'urgence...");
+          const emergencyResult = addon.emergencyRestoreCursors();
+          console.log("Restauration d'urgence:", emergencyResult);
+        }
+      } else {
+        console.log("Le curseur système n'était pas masqué");
+
+        try {
+          const emergencyResult = addon.emergencyRestoreCursors();
+          console.log("Restauration d'urgence préventive:", emergencyResult);
+        } catch (emergencyError) {
+          console.warn("Impossible de faire la restauration d'urgence préventive:", emergencyError);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la restauration du curseur:', error);
+
+      try {
+        console.log('Tentative de restauration de secours...');
+        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+        const emergencyResult = addon.emergencyRestoreCursors();
+        console.log('Restauration de secours réussie:', emergencyResult);
+      } catch (fallbackError) {
+        console.error('Échec de la restauration de secours:', fallbackError);
+      }
+    }
+
     if (this.renderRequestId) {
       clearImmediate(this.renderRequestId);
     }
@@ -838,8 +897,26 @@ const BuenoxApp = new BuenoxAppElectron();
 console.log('Buenox Electron app started.');
 
 process.on('uncaughtException', (_error: Error) => {
+  console.log('Exception non capturée détectée, restauration des curseurs...');
   BuenoxApp.shutdown();
 });
 
 process.on('unhandledRejection', (_reason: any) => {});
+
+process.on('SIGINT', () => {
+  console.log('Signal SIGINT reçu, restauration des curseurs...');
+  BuenoxApp.shutdown();
+});
+
+process.on('SIGTERM', () => {
+  console.log('Signal SIGTERM reçu, restauration des curseurs...');
+  BuenoxApp.shutdown();
+});
+
+if (process.platform === 'win32') {
+  process.on('SIGHUP', () => {
+    console.log('Signal SIGHUP reçu, restauration des curseurs...');
+    BuenoxApp.shutdown();
+  });
+}
 

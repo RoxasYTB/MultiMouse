@@ -1,6 +1,6 @@
 {
-  "name": "Buenox-electron",
-  "version": "1.0.1",
+  "name": "buenox",
+  "version": "1.0.2",
   "description": "Application Buenox stable avec Electron.js",
   "main": "dist/main.js",
   "scripts": {
