@@ -1,4 +1,4 @@
-class MultimouseRenderer {
+class BuenoxRenderer {
   private cursors: Map<string, any> = new Map();
   private config: any = null;
   private cursorsContainer: HTMLElement;
@@ -332,19 +332,19 @@ class MultimouseRenderer {
 
 document.addEventListener('DOMContentLoaded', () => {
   if (!document.querySelector('#renderer-ready')) {
-    new MultimouseRenderer();
+    new BuenoxRenderer();
   }
 });
 
 window.addEventListener('load', () => {
   if (!document.querySelector('#renderer-ready')) {
-    new MultimouseRenderer();
+    new BuenoxRenderer();
   }
 });
 
 setTimeout(() => {
   if (!document.querySelector('#renderer-ready')) {
-    new MultimouseRenderer();
+    new BuenoxRenderer();
   }
 }, 1000);
 

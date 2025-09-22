@@ -1,4 +1,4 @@
-# MultimouseElectron
+# Buenox
 
 Application Electron.js pour détecter et utiliser plusieurs souris simultanément avec des curseurs indépendants via l'API Raw Input de Windows.
 
@@ -38,8 +38,8 @@ Avant de commencer, assurez-vous d'avoir installé les éléments suivants :
 1. Clonez le dépôt :
 
    ```bash
-   git clone https://github.com/RoxasYTB/MultiMouseElectron.git
-   cd MultiMouseElectron
+   git clone https://github.com/RoxasYTB/Buenox.git
+   cd Buenox
    ```
 
 2. Installez les dépendances Node.js :
@@ -179,7 +179,7 @@ src/
 ├── main.ts                 # Processus principal Electron
 ├── renderer.ts             # Interface overlay
 ├── raw_input_detector.ts   # Wrapper API Raw Input
-├── multimouse_addon.cpp    # Module C++ natif
+├── Buenox_addon.cpp    # Module C++ natif
 └── types.ts               # Interfaces TypeScript
 ```
 

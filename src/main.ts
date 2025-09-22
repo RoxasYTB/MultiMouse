@@ -39,7 +39,7 @@ interface CursorState {
   totalMovement: number;
 }
 
-class MultimouseApp {
+class BuenoxApp {
   private overlayWindow: BrowserWindow | null = null;
   private config: AppConfig = { ...DEFAULT_CONFIG };
   private configPath: string;
@@ -401,7 +401,7 @@ class MultimouseApp {
       }
 
       this.tray = new Tray(trayImage);
-      this.tray.setToolTip('Multimouse');
+      this.tray.setToolTip('Buenox');
       this.updateTrayMenu();
 
       this.tray.on('click', () => {
@@ -833,12 +833,12 @@ class MultimouseApp {
   }
 }
 
-const multimouseApp = new MultimouseApp();
+const BuenoxApp = new BuenoxApp();
 
-console.log('Multimouse Electron app started.');
+console.log('Buenox Electron app started.');
 
 process.on('uncaughtException', (_error: Error) => {
-  multimouseApp.shutdown();
+  BuenoxApp.shutdown();
 });
 
 process.on('unhandledRejection', (_reason: any) => {});

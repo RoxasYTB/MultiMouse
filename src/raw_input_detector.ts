@@ -49,7 +49,7 @@ export class RawInputMouseDetector extends EventEmitter {
     if (this.isActive) return true;
 
     try {
-      const modulePath = path.join(__dirname, '..', 'build', 'Release', 'multimouse_raw_input.node');
+      const modulePath = path.join(__dirname, '..', 'build', 'Release', 'Buenox_raw_input.node');
       this.rawInputModule = require(modulePath) as RawInputModuleInterface;
 
       this.rawInputModule.setCallbacks(this.handleMouseMove.bind(this), this.handleDeviceChange.bind(this));

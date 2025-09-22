@@ -1,13 +1,13 @@
 {
-  "name": "multimouse-electron",
+  "name": "Buenox-electron",
   "version": "1.0.1",
-  "description": "Application Multimouse stable avec Electron.js",
+  "description": "Application Buenox stable avec Electron.js",
   "main": "dist/main.js",
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx",
     "clean": "eslint . --ext .ts,.tsx --fix && ts-prune | tee ts-prune-report.txt",
     "build": "tsc && electron-rebuild",
-    "lastBuild": "npx electron-rebuild -f -w multimouse_raw_input --arch=x64 --runtime=electron --version 26.6.10",
+    "lastBuild": "npx electron-rebuild -f -w Buenox_raw_input --arch=x64 --runtime=electron --version 26.6.10",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "compile": "tsc",
@@ -22,7 +22,7 @@
     "watch": "tsc --watch"
   },
   "keywords": [
-    "multimouse",
+    "Buenox",
     "cursor",
     "overlay"
   ],
@@ -51,8 +51,8 @@
     "typescript": "^5.9.2"
   },
   "build": {
-    "appId": "com.multimouse.app",
-    "productName": "MultiMouse",
+    "appId": "com.Buenox.app",
+    "productName": "Buenox",
     "asar": true,
     "directories": {
       "output": "dist"
@@ -63,7 +63,7 @@
       "overlay.html",
       "overlay.css",
       "config.json",
-      "build/Release/multimouse_raw_input.node",
+      "build/Release/Buenox_raw_input.node",
       "assets/**/*",
       "!**/node_modules/*/{test,__tests__,example,examples}/**",
       "!**/*.map",
@@ -87,7 +87,7 @@
         "zip"
       ],
       "icon": "assets/icon.ico",
-      "artifactName": "MultiMouse-${version}-${arch}.${ext}"
+      "artifactName": "Buenox-${version}-${arch}.${ext}"
     },
     "asarUnpack": [
       "**/*.node",

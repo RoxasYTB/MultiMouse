@@ -195,7 +195,7 @@ NAN_METHOD(StartRawInput) {
     WNDCLASSA wc = {};
     wc.lpfnWndProc = RawInputWndProc;
     wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = "MultimouseRawInput";
+    wc.lpszClassName = "BuenoxRawInput";
 
     if (!RegisterClassA(&wc)) {
         DWORD error = GetLastError();
@@ -210,7 +210,7 @@ NAN_METHOD(StartRawInput) {
 
     hiddenWindow = CreateWindowExA(
         0,
-        "MultimouseRawInput",
+        "BuenoxRawInput",
         "Hidden",
         WS_POPUP,
         -32000, -32000, 1, 1,
@@ -444,6 +444,6 @@ NAN_MODULE_INIT(Init) {
         Nan::GetFunction(Nan::New<v8::FunctionTemplate>(GetSystemCursorPos)).ToLocalChecked());
 }
 
-NODE_MODULE(multimouse_raw_input, Init)
+NODE_MODULE(Buenox_raw_input, Init)
 
 
