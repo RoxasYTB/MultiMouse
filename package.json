@@ -64,6 +64,7 @@
       "overlay.css",
       "config.json",
       "build/Release/Buenox_raw_input.node",
+      "bin/**/*.node",
       "assets/**/*",
       "!**/node_modules/*/{test,__tests__,example,examples}/**",
       "!**/*.map",
@@ -91,7 +92,8 @@
     },
     "asarUnpack": [
       "**/*.node",
-      "assets/**/*"
+      "assets/**/*",
+      "bin/**/*"
     ],
     "compression": "store",
     "nsis": {

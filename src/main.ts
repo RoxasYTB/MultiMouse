@@ -840,28 +840,16 @@ class BuenoxAppElectron {
         console.log('Curseur système restauré:', showResult);
 
         if (!showResult) {
-          console.log("Échec de la restauration automatique, tentative de restauration d'urgence...");
-          const emergencyResult = addon.emergencyRestoreCursors();
-          console.log("Restauration d'urgence:", emergencyResult);
+          console.log('Échec de la restauration automatique, tentative de restauration manuelle...');
         }
       } else {
         console.log("Le curseur système n'était pas masqué");
-
-        try {
-          const emergencyResult = addon.emergencyRestoreCursors();
-          console.log("Restauration d'urgence préventive:", emergencyResult);
-        } catch (emergencyError) {
-          console.warn("Impossible de faire la restauration d'urgence préventive:", emergencyError);
-        }
       }
     } catch (error) {
       console.error('Erreur lors de la restauration du curseur:', error);
 
       try {
         console.log('Tentative de restauration de secours...');
-        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
-        const emergencyResult = addon.emergencyRestoreCursors();
-        console.log('Restauration de secours réussie:', emergencyResult);
       } catch (fallbackError) {
         console.error('Échec de la restauration de secours:', fallbackError);
       }
