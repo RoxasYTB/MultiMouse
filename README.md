@@ -43,10 +43,25 @@ Avant de commencer, assurez-vous d'avoir installé les éléments suivants :
    ```
 
 2. Installez les dépendances Node.js :
+
    ```bash
    npm install
    ```
+
    Cette commande installera automatiquement les dépendances et recompilera le module natif via le script `postinstall`.
+
+3. (Optionnel) Installez UPX pour une compression optimale :
+
+   ```bash
+   # Exécutez le script d'installation
+   install-upx.cmd
+
+   # Ou manuellement via Chocolatey
+   choco install upx -y
+
+   # Ou via Scoop
+   scoop install upx
+   ```
 
 ## Compilation et Build
 
@@ -127,6 +142,92 @@ npm run watch
 ```bash
 npm run lint
 ```
+
+## 🚀 Build de production optimisé
+
+### Build automatique (recommandé)
+
+**Méthode interactive (toutes options)** :
+
+```bash
+# Script de choix avec 4 méthodes
+choose-build-method.cmd
+```
+
+**Méthode 1 - Build intégré (afterPack)** :
+
+```bash
+# Build avec optimisations intégrées dans electron-builder
+npm run dist:win-optimized
+```
+
+**Méthode 2 - Build CMD complet** :
+
+```bash
+# Script CMD pur avec compression manuelle
+scripts\build-cmd-complet.cmd
+```
+
+**Méthode 3 - Build + PowerShell UPX** :
+
+```bash
+# Build puis compression PowerShell séparée
+npm run pack:win
+powershell -ExecutionPolicy Bypass -File scripts\compress-upx.ps1
+```
+
+**Méthode 4 - Scripts originaux** :
+
+```bash
+# Scripts Batch et PowerShell classiques
+build-win.cmd
+# ou
+powershell -ExecutionPolicy Bypass -File .\build-win.ps1
+```
+
+### Build manuel étape par étape
+
+```bash
+# 1. Nettoyage
+npm run clean
+
+# 2. Compilation + rebuild
+npm run compile
+npm run rebuild
+
+# 3. Optimisation des dépendances
+npm prune --production
+npm dedupe
+
+# 4. Build des 3 formats
+npm run pack:win
+# Génère: Buenox-1.0.2-x64-win32.exe (NSIS installer)
+#         Buenox-1.0.2-x64-win32.zip (ZIP portable)
+#         Buenox Portable 1.0.2.exe (Portable)
+```
+
+### Scripts de build disponibles
+
+- `npm run dist:win-optimized` : Build optimisé automatique
+- `npm run pack:win` : Build NSIS + Portable + ZIP
+- `npm run dist:nsis` : Installeur NSIS uniquement
+- `npm run dist:portable` : Version portable uniquement
+- `npm run dist:zip` : Archive ZIP uniquement
+
+### Optimisations appliquées
+
+✅ **Compression maximale** : `compression: "maximum"`
+✅ **Filtrage agressif** : Exclusion des fichiers de développement
+✅ **Locales minimales** : Seulement français et anglais
+✅ **Suppression Chromium** : SwiftShader, PDF viewer, dev tools
+✅ **Compression UPX** : Binaires EXE/DLL (si installé)
+✅ **Nettoyage post-build** : Maps, PDB, fichiers temporaires
+
+### Taille attendue
+
+- **Avant optimisation** : ~120-150 Mo
+- **Après optimisation** : ~75-95 Mo
+- **Avec UPX** : ~60-80 Mo
 
 ## Problèmes courants
 

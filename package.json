@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx",
-    "clean": "eslint . --ext .ts,.tsx --fix && ts-prune | tee ts-prune-report.txt",
+    "clean": "npx rimraf dist out release dist-app-new .cache",
     "build": "tsc && electron-rebuild",
     "lastBuild": "npx electron-rebuild -f -w Buenox_raw_input --arch=x64 --runtime=electron --version 26.6.10",
     "start": "npm run build && electron .",
@@ -17,6 +17,10 @@
     "dist:portable": "electron-builder --win portable",
     "dist:zip": "electron-builder --win zip",
     "dist:all": "electron-builder --win portable zip",
+    "dist:nsis": "electron-builder --win nsis",
+    "prepack:prod": "npm prune --production && npm dedupe",
+    "pack:win": "electron-builder --win nsis portable zip",
+    "dist:win-optimized": "npm run clean && npm run prepack:prod && npm run pack:win",
     "install-deps": "npm install",
     "postinstall": "electron-builder install-app-deps",
     "watch": "tsc --watch"
@@ -30,10 +34,10 @@
   "license": "MIT",
   "gypfile": true,
   "dependencies": {
+    "chokidar": "^4.0.3",
     "eslint-plugin-unused-imports": "^4.2.0",
     "nan": "^2.23.0",
     "typescript-eslint": "^8.44.0",
-    "chokidar": "^4.0.3",
     "ws": "^8.18.3"
   },
   "devDependencies": {
@@ -66,39 +70,49 @@
       "build/Release/Buenox_raw_input.node",
       "bin/**/*.node",
       "assets/**/*",
-      "!**/node_modules/*/{test,__tests__,example,examples}/**",
+      "!**/*.{md,MD,markdown}",
+      "!**/{test,tests,__tests__,spec,example,examples,benchmark}/**",
       "!**/*.map",
       "!dist/*.exe",
       "!dist/*.zip",
       "!dist/win-unpacked",
       "!**/{*.ts,*.tsx}",
-      "!**/{*.test.*,*.spec.*}",
-      "!**/README*",
-      "!**/readme*",
-      "!**/CHANGELOG*",
-      "!**/changelog*",
+      "!**/*.d.ts",
+      "!**/*.{test.*,*.spec.*}",
+      "!**/{README*,readme*}",
+      "!**/{CHANGELOG*,changelog*}",
       "!**/.git*",
+      "!**/.eslint*",
+      "!**/.prettier*",
       "!**/docs/**",
       "!**/test/**",
-      "!**/tests/**"
+      "!**/tests/**",
+      "!**/coverage/**",
+      "!**/scripts/**",
+      "!**/demo/**"
     ],
+    "compression": "normal",
+    "artifactName": "Buenox-${version}-${arch}-${os}.${ext}",
+    "afterPack": "scripts/afterPack.js",
     "win": {
       "target": [
+        "nsis",
         "portable",
         "zip"
       ],
-      "icon": "assets/icon.ico",
-      "artifactName": "Buenox-${version}-${arch}.${ext}"
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
     },
     "asarUnpack": [
       "**/*.node",
+      "**/*.dll",
       "assets/**/*",
       "bin/**/*"
     ],
-    "compression": "store",
-    "nsis": {
-      "oneClick": false
-    },
     "electronLanguages": [
       "en",
       "fr"
