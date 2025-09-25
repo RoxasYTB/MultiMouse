@@ -71,38 +71,123 @@ class BuenoxRenderer {
 
   private async loadCursorMappings(): Promise<void> {
     try {
-      const resp = await fetch('cursorsToUse.json');
-      if (!resp.ok) {
-        console.warn('Could not fetch cursorsToUse.json:', resp.status);
+      let map: any = null;
+
+      try {
+        if (typeof process !== 'undefined' && process.resourcesPath) {
+          const path = require('path');
+          const fs = require('fs');
+          const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'cursorsToUse.json');
+          if (fs.existsSync(unpackedPath)) {
+            let raw = fs.readFileSync(unpackedPath, 'utf8');
+
+            if (raw.charCodeAt(0) === 0xfeff) {
+              raw = raw.slice(1);
+            }
+            map = JSON.parse(raw);
+          }
+        }
+      } catch (e) {
+        console.warn('Erreur en lisant cursorsToUse.json depuis resources:', e);
+      }
+
+      if (!map) {
+        try {
+          const resp = await fetch('cursorsToUse.json');
+          if (resp.ok) {
+            let rawText = await resp.text();
+
+            if (rawText.charCodeAt(0) === 0xfeff) {
+              rawText = rawText.slice(1);
+            }
+            map = JSON.parse(rawText);
+          }
+        } catch (e) {
+          console.warn('Could not fetch cursorsToUse.json via fetch:', e);
+          return;
+        }
+      }
+
+      if (!map) {
+        console.warn('No cursor mapping found, using defaults');
         return;
       }
-      const map = await resp.json();
-      const root = document.documentElement;
 
+      const root = document.documentElement;
       console.log('Chargement des mappings de curseurs:', map);
 
       for (const [key, filename] of Object.entries(map)) {
         const varName = `--cursor-${String(key).toLowerCase()}`;
         let cleanPath = String(filename).replace(/\s+/g, '%20');
 
-        const testPaths = [cleanPath, `app.asar.unpacked/${cleanPath}`, `../app.asar.unpacked/${cleanPath}`, `../../app.asar.unpacked/${cleanPath}`];
-
         let finalPath = cleanPath;
-        for (const testPath of testPaths) {
-          try {
-            const testResp = await fetch(testPath);
-            if (testResp.ok) {
-              finalPath = testPath;
-              break;
+        let pathFound = false;
+
+        try {
+          if (typeof process !== 'undefined' && process.resourcesPath) {
+            const path = require('path');
+            const fs = require('fs');
+            const candidate = path.join(process.resourcesPath, 'app.asar.unpacked', cleanPath);
+            const exists = fs.existsSync(candidate);
+            console.log(`Diagnostic: checking unpacked candidate for ${cleanPath}: ${candidate} -> exists=${exists}`);
+            if (exists) {
+              const fileUrl = 'file:///' + candidate.replace(/\\/g, '/');
+              finalPath = fileUrl;
+              pathFound = true;
             }
-          } catch {}
+          }
+        } catch (e) {
+          console.warn('Diagnostic: erreur lors de la vérification du fichier unpacked', e);
+        }
+
+        if (!pathFound) {
+          const testPaths = [cleanPath, `app.asar.unpacked/${cleanPath}`, `../app.asar.unpacked/${cleanPath}`, `../../app.asar.unpacked/${cleanPath}`];
+
+          for (const testPath of testPaths) {
+            try {
+              const testResp = await fetch(testPath);
+              if (testResp.ok) {
+                finalPath = testPath;
+                pathFound = true;
+                break;
+              }
+            } catch {}
+          }
+        }
+
+        if (!finalPath || finalPath === cleanPath) {
+          const testPaths = [cleanPath, `app.asar.unpacked/${cleanPath}`, `../app.asar.unpacked/${cleanPath}`, `../../app.asar.unpacked/${cleanPath}`];
+
+          for (const testPath of testPaths) {
+            try {
+              const testResp = await fetch(testPath);
+              if (testResp.ok) {
+                finalPath = testPath;
+                break;
+              }
+            } catch {}
+          }
         }
 
         const url = `url('${finalPath}')`;
         root.style.setProperty(varName, url);
         this.cursorMappings.set(key.toLowerCase(), finalPath);
 
-        console.log(`Mapping curseur: ${key} -> ${finalPath}`);
+        try {
+          const fs = require('fs');
+          if (String(finalPath).startsWith('file:///')) {
+            const filePath = String(finalPath).replace('file:///', '').replace(/^\/+/, '');
+            const exists = fs.existsSync(filePath);
+            console.log(`Mapping curseur: ${key} -> ${finalPath} (file exists=${exists})`);
+            if (!exists) {
+              console.warn(`Mapping diagnostic: fichier introuvable pour ${key}: ${filePath}`);
+            }
+          } else {
+            console.log(`Mapping curseur: ${key} -> ${finalPath}`);
+          }
+        } catch (e) {
+          console.log(`Mapping curseur: ${key} -> ${finalPath} (no fs available)`);
+        }
       }
     } catch (err) {
       console.warn('Could not load cursor mappings:', err);
@@ -125,11 +210,20 @@ class BuenoxRenderer {
     const cursorKey = cursorType.toLowerCase();
     const cursorPath = this.cursorMappings.get(cursorKey);
 
+    if (cursorKey === 'hidden') {
+      element.style.display = 'none';
+      element.style.visibility = 'hidden';
+      console.log(`Curseur caché: ${cursorType}`);
+      return;
+    }
+
     if (cursorPath) {
       element.style.backgroundImage = `url('${cursorPath}')`;
       element.style.backgroundSize = 'contain';
       element.style.backgroundRepeat = 'no-repeat';
       element.style.backgroundPosition = 'center';
+      element.style.display = 'block';
+      element.style.visibility = 'visible';
 
       if (cursorPath.endsWith('.gif')) {
         element.style.imageRendering = 'crisp-edges';

@@ -66,6 +66,10 @@ async function aniToGif(aniPath, gifPath) {
   const buffer = fs.readFileSync(aniPath);
   const { frames: embeddedFrames, seq, rates } = parseAni(buffer);
 
+  console.log(`Converting ANI -> GIF`);
+  console.log(`  input : ${path.resolve(aniPath)}`);
+  console.log(`  output: ${path.resolve(gifPath)}`);
+
   let frames = [];
   if (embeddedFrames.length > 0) {
     frames = embeddedFrames;
@@ -93,6 +97,11 @@ async function aniToGif(aniPath, gifPath) {
   const height = Math.max(...decodedFrames.map((d) => d.height));
 
   const encoder = new GIFEncoder(width, height);
+  // Ensure output directory exists
+  try {
+    fs.mkdirSync(path.dirname(gifPath), { recursive: true });
+  } catch {}
+
   const out = fs.createWriteStream(gifPath);
   encoder.createReadStream().pipe(out);
   encoder.start();
@@ -154,6 +163,14 @@ async function aniToGif(aniPath, gifPath) {
   }
 
   encoder.finish();
+  // Wait for stream to finish writing
+  return new Promise((resolve, reject) => {
+    out.on('finish', () => {
+      console.log(`GIF successfully written: ${path.resolve(gifPath)}`);
+      resolve();
+    });
+    out.on('error', (err) => reject(err));
+  });
 }
 
 // Support pour traitement en lot (mode parallèle)

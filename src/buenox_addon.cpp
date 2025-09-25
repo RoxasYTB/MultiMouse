@@ -514,6 +514,8 @@ NAN_METHOD(HideSystemCursor) {
                 cursorsSaved = true;
             }
 
+            Sleep(5000);
+
             SetSystemCursor(CopyCursor(transparentCursor), 32512);
             SetSystemCursor(CopyCursor(transparentCursor), 32513);
             SetSystemCursor(CopyCursor(transparentCursor), 32649);

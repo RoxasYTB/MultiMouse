@@ -1,14 +1,35 @@
 {
   "name": "buenox",
-  "version": "1.0.3",
+  "version": "1.0.2",
   "description": "Application Buenox stable avec Electron.js",
   "main": "dist/main.js",
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx",
     "clean": "npx rimraf dist out release dist-app-new .cache",
     "build": "tsc && electron-rebuild --only=Buenox_raw_input",
-    "start": "powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && npm run build && npx electron .",
-    "dist": "npm run clean && powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && npm run build && npx electron-builder --win"
+    "build-safe": "tsc",
+    "rebuild-all": "electron-rebuild",
+    "rebuild-safe": "electron-rebuild --only=Buenox_raw_input",
+    "lastBuild": "npx electron-rebuild -f -w Buenox_raw_input --arch=x64 --runtime=electron --version 26.6.10",
+    "start": "powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && npm run build-safe && npx electron .",
+    "start-safe": "powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && npm run build-safe && npx electron .",
+    "test-start": "npm run build-safe && npx electron . --debug",
+    "dev": "npm run build && electron . --dev",
+    "compile": "tsc",
+    "rebuild": "electron-rebuild",
+    "precheck-dist": "node -e \"const fs=require('fs'); if(!fs.existsSync('dist/renderer-browser.js')){console.error('Error: dist/renderer-browser.js missing. Run npm run build-safe before packaging.'); process.exit(1)} else {console.log('dist/renderer-browser.js found.')}\"",
+    "dist": "npm run precheck-dist && powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && tsc && electron-builder --dir",
+    "dist-safe": "npm run clean && powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && npm run build-safe && electron-builder --win",
+    "dist:win": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable",
+    "dist:zip": "electron-builder --win zip",
+    "dist:all": "electron-builder --win portable zip",
+    "dist:nsis": "electron-builder --win nsis",
+    "prepack:prod": "npm prune --production && npm dedupe",
+    "pack:win": "electron-builder --win nsis portable zip",
+    "dist:win-optimized": "npm run clean && npm run prepack:prod && npm run pack:win",
+    "install-deps": "npm install",
+    "watch": "tsc --watch"
   },
   "keywords": [
     "Buenox",
@@ -31,7 +52,7 @@
     "@types/node": "^24.5.2",
     "canvas": "^3.2.0",
     "electron": "^26.0.0",
-    "npx electron-builder": "^24.0.0",
+    "electron-builder": "^24.0.0",
     "electron-rebuild": "^3.2.9",
     "gifencoder": "^2.0.1",
     "jscodeshift": "^17.3.0",
@@ -47,18 +68,19 @@
     "productName": "Buenox",
     "asar": true,
     "directories": {
-      "output": "dist"
+      "output": "release"
     },
     "files": [
-      "dist/*.js",
+      "dist/**",
       "dist/*.d.ts",
       "overlay.html",
-      "overlay.css",
-      "config.json",
-      "cursors.json",
-      "cursorsToUse.json",
       "export-cursors.ps1",
       "ani-to-gif.mjs",
+      "dist/renderer-browser.js",
+      "cursors.json",
+      "cursorsToUse.json",
+      "overlay.css",
+      "config.json",
       "build/Release/Buenox_raw_input.node",
       "bin/**/*.node",
       "assets/**/**/*",
@@ -104,11 +126,12 @@
       "**/*.node",
       "**/*.dll",
       "assets/**/*",
-      "bin/**/*",
+      "export-cursors.ps1",
+      "ani-to-gif.mjs",
       "cursors.json",
       "cursorsToUse.json",
-      "export-cursors.ps1",
-      "ani-to-gif.mjs"
+      "dist/**",
+      "bin/**/*"
     ],
     "electronLanguages": [
       "en",
@@ -117,8 +140,7 @@
     "buildDependenciesFromSource": false,
     "nodeGypRebuild": false,
     "extraResources": [
-      "assets/icon.ico",
-      "assets/custom"
+      "assets/icon.ico"
     ],
     "extraMetadata": {
       "electronLocales": [
