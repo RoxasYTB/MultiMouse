@@ -15,6 +15,7 @@ Les curseurs personnalisés sont pris en charge : si vous utilisez des curseurs 
 - Attention du détail :
   - Chaque curseur peut être dans plusieurs états (la flèche, main, texte, etc.) en fonction du contexte (lien, input texte, etc.)
   - Chaque curseur à son état indépendant : l'un peut-être en mode "main" sur un lien par exemple tandis qu'un autre est en mode "souris basique", quand il n'y a rien, ou texte (si un champ de texte est en dessous du curseur).
+  <img width="286" height="154" alt="image" src="https://github.com/user-attachments/assets/cb1cf40a-f2fc-4ccc-aea6-8603f1a63ad9" />
 - Gratuit, open source, ouvert à la contribution
 
 ## Prérequis
