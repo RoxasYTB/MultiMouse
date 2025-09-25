@@ -13,11 +13,9 @@ Les curseurs personnalisés sont pris en charge : si vous utilisez des curseurs 
 - Détection multi‑souris physiques
 - Curseurs indépendants par périphérique
 - Attention du détail :
-
-  - Chaque curseur peut être dans plusieurs états (la flèche, main, le beam du texte (le I), etc.) en fonction du contexte (lien, input texte, etc.)
+  - Chaque curseur peut être dans plusieurs états (la flèche, main, texte, etc.) en fonction du contexte (lien, input texte, etc.)
   - Chaque curseur à son état indépendant : l'un peut-être en mode "main" sur un lien par exemple tandis qu'un autre est en mode "souris basique", quand il n'y a rien, ou texte (si un champ de texte est en dessous du curseur).
-
-- Gratuit, open source (MIT)
+- Gratuit, open source, ouvert à la contribution
 
 ## Prérequis
 
@@ -47,4 +45,4 @@ npm run start
 
 ## Licence
 
-MIT — voir le fichier `LICENSE`
+Usage non commercial uniquement.
