@@ -91,3 +91,5 @@ debug_*.ts
 *_old.*
 *_backup.*
 *.bak
+
+assets/custom/*.gif

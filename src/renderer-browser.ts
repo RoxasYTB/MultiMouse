@@ -5,6 +5,7 @@ class BuenoxRenderer {
   private sensitivityValue: HTMLElement;
   private activeCursors: HTMLElement;
   private deviceCount: HTMLElement;
+  private cursorMappings: Map<string, string> = new Map();
 
   private lastPositions: Map<string, { x: number; y: number }> = new Map();
   private pendingUpdates: Map<string, any> = new Map();
@@ -35,6 +36,8 @@ class BuenoxRenderer {
       this.config = await ipcRenderer.invoke('get-config');
       this.updateInfoPanel();
 
+      this.loadCursorMappings();
+
       const handlers: Record<string, (data: any) => void> = {
         'cursors-updated': (d: any[]) => this.updateCursors(d),
         'mouse-move': (d: any) => this.updateSingleCursor(d),
@@ -62,6 +65,65 @@ class BuenoxRenderer {
       ipcRenderer.send('renderer-ready');
     } catch (err) {
       console.error('Error initializing renderer:', err);
+    }
+  }
+
+  private async loadCursorMappings(): Promise<void> {
+    try {
+      const resp = await fetch('cursorsToUse.json');
+      if (!resp.ok) return;
+      const map = await resp.json();
+      const root = document.documentElement;
+
+      console.log('Chargement des mappings de curseurs:', map);
+
+      for (const [key, filename] of Object.entries(map)) {
+        const varName = `--cursor-${String(key).toLowerCase()}`;
+
+        const cleanPath = String(filename).replace(/\s+/g, '%20');
+        const url = `url('${cleanPath}')`;
+        root.style.setProperty(varName, url);
+
+        this.cursorMappings.set(key.toLowerCase(), cleanPath);
+
+        console.log(`Mapping curseur: ${key} -> ${cleanPath}`);
+      }
+    } catch (err) {
+      console.warn('Could not load cursor mappings:', err);
+    }
+  }
+
+  private applyCursorStyle(element: HTMLElement, cursorType: string): void {
+    const cursorKey = cursorType.toLowerCase();
+    const cursorPath = this.cursorMappings.get(cursorKey);
+
+    if (cursorPath) {
+      element.style.backgroundImage = `url('${cursorPath}')`;
+      element.style.backgroundSize = 'contain';
+      element.style.backgroundRepeat = 'no-repeat';
+      element.style.backgroundPosition = 'center';
+
+      if (cursorPath.endsWith('.gif')) {
+        element.style.imageRendering = 'crisp-edges';
+        element.style.filter = 'contrast(1.1) drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4))';
+      } else if (cursorPath.endsWith('.cur')) {
+        element.style.imageRendering = 'auto';
+
+        const needsInvert = (cursorKey === 'cross' || cursorKey === 'ibeam') && cursorPath.includes('assets/default/');
+
+        if (needsInvert) {
+          element.style.filter = 'invert(1) drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4))';
+          console.log(`Filtre invert appliqué pour: ${cursorType}`);
+        } else {
+          element.style.filter = 'drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4))';
+        }
+      }
+
+      console.log(`Curseur appliqué: ${cursorType} -> ${cursorPath}`);
+    } else {
+      console.warn(`Pas de mapping trouvé pour le curseur: ${cursorType}`);
+
+      element.classList.add(`cursor-type-${cursorKey}`);
     }
   }
 
@@ -105,15 +167,39 @@ class BuenoxRenderer {
     this.pendingUpdates.clear();
   }
 
-  private updateCursorPositionInstant(d: any): void {
-    let cursor = this.cursors.get(d.deviceId);
-    if (!cursor) {
-      return this.createNewCursor(d.deviceId, d);
-    }
+  private getCursorOffsets(cursorType: string): [number, number, number, number] {
+    const cursorKey = cursorType.toLowerCase();
+    const cursorPath = this.cursorMappings.get(cursorKey);
 
-    const last = this.lastPositions.get(d.deviceId);
-    if (!last || last.x !== d.x || last.y !== d.y) {
-      const sizes: Record<string, [number, number, number, number]> = {
+    const isGif = cursorPath && cursorPath.endsWith('.gif');
+
+    if (isGif) {
+      const gifOffsets: Record<string, [number, number, number, number]> = {
+        arrow: [0, 0, 32, 32],
+        hand: [0, 0, 32, 32],
+        ibeam: [0, 0, 32, 32],
+        sizens: [0, 0, 32, 32],
+        sizewe: [0, 0, 32, 32],
+        sizenwse: [0, 0, 32, 32],
+        sizenesw: [0, 0, 32, 32],
+        wait: [0, 0, 32, 32],
+        sizeall: [0, 0, 32, 32],
+        no: [0, 0, 32, 32],
+        help: [0, 0, 32, 32],
+        busy: [0, 0, 32, 32],
+        appstarting: [0, 0, 32, 32],
+        normal: [0, 0, 32, 32],
+        text: [0, 0, 32, 32],
+        vertical: [0, 0, 32, 32],
+        horizontal: [0, 0, 32, 32],
+        diagonal1: [0, 0, 32, 32],
+        diagonal2: [0, 0, 32, 32],
+        unavailable: [0, 0, 32, 32],
+        uparrow: [0, 0, 32, 32],
+      };
+      return gifOffsets[cursorKey] || [0, 0, 32, 32];
+    } else {
+      const curOffsets: Record<string, [number, number, number, number]> = {
         arrow: [0, 0, 26, 26],
         hand: [-4, -2, 26, 26],
         ibeam: [-1.5, -6, 26, 26],
@@ -128,7 +214,19 @@ class BuenoxRenderer {
         help: [-1, -1, 26, 26],
         default: [0, 0, 26, 26],
       };
-      const [ox, oy, w, h] = sizes[(d.cursorType || '').toLowerCase()] || sizes.default;
+      return curOffsets[cursorKey] || [0, 0, 26, 26];
+    }
+  }
+
+  private updateCursorPositionInstant(d: any): void {
+    let cursor = this.cursors.get(d.deviceId);
+    if (!cursor) {
+      return this.createNewCursor(d.deviceId, d);
+    }
+
+    const last = this.lastPositions.get(d.deviceId);
+    if (!last || last.x !== d.x || last.y !== d.y) {
+      const [ox, oy, w, h] = this.getCursorOffsets(d.cursorType || 'default');
 
       Object.assign(cursor.element.style, {
         transform: `translate3d(${d.x + ox}px, ${d.y + oy}px, 0)`,
@@ -151,12 +249,7 @@ class BuenoxRenderer {
   }
 
   private updateCursorTypeClass(el: HTMLElement, oldT: string | undefined, newT: string): void {
-    if (oldT) {
-      el.classList.remove(`cursor-type-${oldT.toLowerCase()}`);
-    }
-    if (newT) {
-      el.classList.add(`cursor-type-${newT.toLowerCase()}`);
-    }
+    this.applyCursorStyle(el, newT);
   }
 
   private updateCursors(arr: any[]): void {
@@ -197,9 +290,7 @@ class BuenoxRenderer {
     const c = this.cursors.get(d.activeDeviceId);
     if (!c) return;
 
-    const classesToRemove = Array.from(c.element.classList).filter((cls: any) => cls.startsWith('cursor-type-'));
-    c.element.classList.remove(...classesToRemove);
-    c.element.classList.add(`cursor-type-${d.type.toLowerCase()}`);
+    this.applyCursorStyle(c.element, d.type);
     Object.assign(c, {
       cursorType: d.type,
       cursorCSS: d.cssClass,
@@ -230,7 +321,7 @@ class BuenoxRenderer {
     }
 
     if (d.cursorType) {
-      el.classList.add(`cursor-type-${d.cursorType.toLowerCase()}`);
+      this.applyCursorStyle(el, d.cursorType);
     } else {
       Object.assign(el.style, {
         width: '24px',
@@ -271,8 +362,7 @@ class BuenoxRenderer {
     });
 
     if (d.cursorType && d.cursorType !== cursor.cursorType) {
-      cursor.element.classList.remove(`cursor-type-${cursor.cursorType?.toLowerCase()}`);
-      cursor.element.classList.add(`cursor-type-${d.cursorType.toLowerCase()}`);
+      this.applyCursorStyle(cursor.element, d.cursorType);
       Object.assign(cursor, {
         cursorType: d.cursorType,
         cursorCSS: d.cursorCSS,

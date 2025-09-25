@@ -8,20 +8,22 @@
       image-rendering: crisp-edges;
       position: absolute;
       pointer-events: none;
-
       transition: none !important;
       z-index: 1000;
-      width: 20px;
-      height: 20px;
+      width: 26px;
+      height: 26px;
       background: transparent;
       background-color: transparent !important;
       background-size: contain;
       background-repeat: no-repeat;
+      background-position: center;
       filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4));
-      will-change: transform;
+      will-change: transform, visibility;
       backface-visibility: hidden;
       perspective: 1000px;
       transform-style: preserve-3d;
+      opacity: 1;
+      border: none !important;
 }
 
 body,
@@ -54,7 +56,6 @@ html {
 .cursor {
       position: absolute;
       pointer-events: none;
-
       transition: none !important;
       z-index: 1000;
       width: 26px;
@@ -71,39 +72,12 @@ html {
       transform-style: preserve-3d;
 }
 
-.cursor-arrow {
-      display: none;
-}
-
 .cursor-body {
       position: relative;
       width: 100%;
       height: 100%;
       background: transparent;
       background-color: transparent !important;
-}
-
-.cursor-arrow::before {
-      content: '';
-      position: absolute;
-      width: 0;
-      height: 0;
-      border-left: 12px solid transparent;
-      border-right: 12px solid transparent;
-      border-bottom: 20px solid currentColor;
-      transform: rotate(-45deg);
-      top: -10px;
-      left: -12px;
-}
-
-.cursor-arrow::after {
-      content: '';
-      position: absolute;
-      width: 8px;
-      height: 12px;
-      transform: rotate(-45deg);
-      top: 5px;
-      left: -4px;
 }
 
 .info-panel {
@@ -189,85 +163,6 @@ html {
             transform: translateX(0);
             opacity: 0.9;
       }
-}
-
-.cursor-type-arrow {
-      background-image: url('assets/Normal Select.cur');
-      transform: translate(-6px, -4px);
-      width: 20px;
-}
-
-.cursor-type-hand {
-      background-image: url('assets/Link Select.cur');
-      transform: translate(-8px, -8px);
-      width: 32px;
-}
-
-.cursor-type-help {
-      background-image: url('assets/Help Select.cur');
-}
-
-.cursor-type-wait {
-      background-image: url('assets/Busy.cur');
-}
-
-.cursor-type-appstarting {
-      background-image: url('assets/Working In Background.cur');
-}
-
-.cursor-type-no {
-      background-image: url('assets/Unavailable.cur');
-}
-
-.cursor-type-cross {
-      background-image: url('assets/Precision Select.cur');
-}
-
-.cursor-type-ibeam {
-      background-image: url('assets/Text Select.cur');
-      filter: invert(1) drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4));
-      transform: translate(-11px, -13px);
-      width: 40px;
-}
-
-.cursor-type-sizens {
-      background-image: url('assets/Vertical Resize.cur');
-      transform: translate(-12px, -12px);
-      width: 35px;
-}
-
-.cursor-type-sizewe {
-      background-image: url('assets/Horizontal Resize.cur');
-      transform: translate(-12px, -12px);
-      width: 35px;
-}
-
-.cursor-type-sizenwse {
-      background-image: url('assets/Diagonal Resize 1.cur');
-      transform: translate(-12px, -12px);
-      width: 35px;
-}
-
-.cursor-type-sizenesw {
-      background-image: url('assets/Diagonal Resize 2.cur');
-      transform: translate(-12px, -12px);
-      width: 35px;
-}
-
-.cursor-type-sizeall {
-      background-image: url('assets/Move.cur');
-      transform: translate(-12px, -12px);
-      width: 35px;
-}
-
-.cursor-type-uparrow {
-      background-image: url('assets/Handwriting.cur');
-}
-
-.cursor-type-cross {
-      filter: invert(1) drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4));
-      transform: translate(-11px, -13px);
-      width: 40px;
 }
 
 .cursor.lastActive {
