@@ -95,12 +95,9 @@ class BuenoxAppElectron {
     this.mouseDetector = new RawInputMouseDetector();
     this.cursorTypeDetector = new CursorTypeDetector();
 
-    console.log('Masquage du curseur système...');
+    console.log('Initialisation du gestionnaire de curseur système...');
     try {
       const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
-      const hideResult = addon.hideSystemCursor();
-      this.cursorHidden = hideResult || false;
-      console.log('Curseur système masqué:', hideResult);
 
       try {
         const shutdownHandlerResult = addon.setupShutdownHandler();
@@ -129,6 +126,36 @@ class BuenoxAppElectron {
   private initHighPerformanceLoop(): void {
     if (this.config.highPerformanceMode) {
       this.startHighPrecisionRendering();
+    }
+  }
+
+  private manageSystemCursorVisibility(): void {
+    const hasActiveCursors = this.cursors.size > 0;
+
+    if (hasActiveCursors && !this.cursorHidden) {
+      console.log('Masquage du curseur système (curseurs actifs détectés)...');
+      try {
+        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+        const hideResult = addon.hideSystemCursor();
+        this.cursorHidden = hideResult || false;
+        console.log('Curseur système masqué:', hideResult);
+      } catch (error) {
+        console.warn('Erreur lors du masquage du curseur système:', error);
+      }
+    } else if (!hasActiveCursors && this.cursorHidden) {
+      console.log('Restauration du curseur système (aucun curseur actif)...');
+      try {
+        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+        const showResult = addon.showSystemCursor();
+        if (showResult) {
+          this.cursorHidden = false;
+          console.log('Curseur système restauré:', showResult);
+        } else {
+          console.warn('Échec de la restauration du curseur système');
+        }
+      } catch (error) {
+        console.warn('Erreur lors de la restauration du curseur système:', error);
+      }
     }
   }
 
@@ -270,7 +297,7 @@ class BuenoxAppElectron {
   }
 
   private setupAppEvents(): void {
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
       const primaryDisplay: Display = screen.getPrimaryDisplay();
       this.screenWidth = primaryDisplay.size.width;
       this.screenHeight = primaryDisplay.size.height;
@@ -278,6 +305,12 @@ class BuenoxAppElectron {
       this.fullScreenHeight = primaryDisplay.size.height;
       this.centerX = this.screenWidth / 2;
       this.centerY = this.screenHeight / 2;
+
+      try {
+        await this.exportCursors();
+      } catch (error) {
+        console.warn("Impossible d'exporter les curseurs au démarrage:", error);
+      }
 
       this.calibrateCoordinateMapping();
       this.startMouseInput();
@@ -376,6 +409,63 @@ class BuenoxAppElectron {
     const deltaX = Math.abs(systemPos.x - htmlPos.x);
     const deltaY = Math.abs(systemPos.y - htmlPos.y);
     if (deltaX > 2 || deltaY > 2) {
+    }
+  }
+
+  private async exportCursors(): Promise<void> {
+    console.log('=== EXPORT DES CURSEURS AU DÉMARRAGE ===');
+
+    try {
+      let scriptPath: string;
+
+      if (app.isPackaged) {
+        scriptPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'export-cursors.ps1');
+      } else {
+        scriptPath = path.join(__dirname, '..', 'export-cursors.ps1');
+      }
+
+      console.log(`Chemin du script PowerShell: ${scriptPath}`);
+
+      if (!fs.existsSync(scriptPath)) {
+        console.error(`Script PowerShell introuvable: ${scriptPath}`);
+        return;
+      }
+
+      const workingDir = path.dirname(scriptPath);
+      console.log(`Répertoire de travail: ${workingDir}`);
+
+      return new Promise<void>((resolve, reject) => {
+        const command = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
+
+        exec(
+          command,
+          {
+            cwd: workingDir,
+            timeout: 30000,
+          },
+          (error, stdout, stderr) => {
+            if (error) {
+              console.error("Erreur lors de l'export des curseurs:", error.message);
+              reject(error);
+              return;
+            }
+
+            if (stderr) {
+              console.warn('Avertissements PowerShell:', stderr);
+            }
+
+            if (stdout) {
+              console.log('Sortie PowerShell:', stdout);
+            }
+
+            console.log('✅ Export des curseurs terminé avec succès');
+            resolve();
+          },
+        );
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'export des curseurs:", error);
+      throw error;
     }
   }
 
@@ -499,6 +589,7 @@ class BuenoxAppElectron {
         totalMovement: 0,
       };
       this.cursors.set(cursorId, cursor);
+      this.manageSystemCursorVisibility();
     }
 
     const newX = cursor.x + dx * this.config.sensitivity;
@@ -569,6 +660,7 @@ class BuenoxAppElectron {
       console.log(`Total movement: ${cursor.totalMovement.toFixed(2)}`);
 
       this.cursors.delete(deviceId);
+      this.manageSystemCursorVisibility();
 
       if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
         console.log(`Envoi de l'événement cursor-removed au renderer...`);

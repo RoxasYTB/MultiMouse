@@ -1,5 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
+# Détecter si nous sommes dans une distribution Electron
+$isDistribution = $false
+if ($env:PORTABLE_EXECUTABLE_DIR -or $env:LOCALAPPDATA -match "Buenox" -or (Test-Path "resources\app.asar")) {
+    $isDistribution = $true
+    Write-Host "Mode distribution détecté"
+}
+
 $cursorKey = 'HKCU:\Control Panel\Cursors'
 $currentCursors = Get-ItemProperty -Path $cursorKey
 
@@ -35,7 +42,14 @@ $map = @{
 
 function Ensure-Dir {
     param([string]$path)
-    if (-not (Test-Path $path)) { New-Item -ItemType Directory -Path $path | Out-Null }
+    if (-not (Test-Path $path)) {
+        try {
+            New-Item -ItemType Directory -Path $path -Force | Out-Null
+            Write-Host "Dossier créé: $path"
+        } catch {
+            Write-Warning "Impossible de créer le dossier $path : $_"
+        }
+    }
 }
 
 Ensure-Dir -path 'assets\custom'
@@ -43,8 +57,12 @@ Ensure-Dir -path 'assets\default'
 
 # Nettoyer le dossier custom avant de commencer (supprimer tous les fichiers, pas le dossier)
 Write-Host "Nettoyage du dossier assets\custom..."
-Get-ChildItem -Path 'assets\custom' -File | Remove-Item -Force
-Write-Host "Dossier custom nettoyé."
+try {
+    Get-ChildItem -Path 'assets\custom' -File -ErrorAction SilentlyContinue | Remove-Item -Force
+    Write-Host "Dossier custom nettoyé."
+} catch {
+    Write-Warning "Erreur lors du nettoyage: $_"
+}
 
 # Vérifier et créer les fichiers curseur manquants dans assets/default
 Write-Host "Vérification des fichiers curseur par défaut..."
@@ -113,11 +131,33 @@ foreach ($friendly in $map.Keys) {
 
     $lower = $val.ToLower()
     if ($lower.EndsWith('.cur')) {
-        # Curseur custom en .cur - utiliser le chemin absolu dans resultToUse
+        # Curseur custom en .cur - copier vers assets/custom pour éviter les problèmes de sécurité
         $normalizedSystemPath = Normalize-SystemPath $val
         $result[$friendly] = $normalizedSystemPath
-        # Pour resultToUse, utiliser directement le chemin absolu du .cur
-        $resultToUse[$friendly] = $normalizedSystemPath
+
+        # Copier le fichier .cur vers assets/custom avec un nom unique
+        $safeName = $friendly
+        $customCurPath = Join-Path 'assets\custom' ("$safeName.cur")
+
+        try {
+            if (Test-Path $val) {
+                Copy-Item $val $customCurPath -Force
+                Write-Host "Copié: $val -> $customCurPath"
+                # Utiliser le chemin local normalisé pour resultToUse
+                $normalizedCustomPath = Normalize-Path $customCurPath
+                $resultToUse[$friendly] = $normalizedCustomPath
+            } else {
+                Write-Warning "Fichier curseur introuvable: $val"
+                # Fallback vers les assets par défaut
+                $defaultPath = "assets/default/$friendly.cur"
+                $resultToUse[$friendly] = $defaultPath
+            }
+        } catch {
+            Write-Warning "Erreur lors de la copie de $val : $_"
+            # Fallback vers les assets par défaut
+            $defaultPath = "assets/default/$friendly.cur"
+            $resultToUse[$friendly] = $defaultPath
+        }
         continue
     }
 
