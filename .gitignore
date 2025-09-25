@@ -93,3 +93,5 @@ debug_*.ts
 *.bak
 
 assets/custom/*.gif
+cursorsToUse.json
+cursors.json
