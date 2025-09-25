@@ -51,6 +51,7 @@ class BuenoxRenderer {
         },
         'cursor-type-changed': (d: any) => this.updateCursorType(d),
         'cursors-visibility-update': (d: any) => this.updateCursorsVisibility(d),
+        'cursors-config-changed': () => this.reloadCursorMappings(),
       };
 
       for (const [evt, fn] of Object.entries(handlers)) {
@@ -71,7 +72,10 @@ class BuenoxRenderer {
   private async loadCursorMappings(): Promise<void> {
     try {
       const resp = await fetch('cursorsToUse.json');
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        console.warn('Could not fetch cursorsToUse.json:', resp.status);
+        return;
+      }
       const map = await resp.json();
       const root = document.documentElement;
 
@@ -79,18 +83,42 @@ class BuenoxRenderer {
 
       for (const [key, filename] of Object.entries(map)) {
         const varName = `--cursor-${String(key).toLowerCase()}`;
+        let cleanPath = String(filename).replace(/\s+/g, '%20');
 
-        const cleanPath = String(filename).replace(/\s+/g, '%20');
-        const url = `url('${cleanPath}')`;
+        const testPaths = [cleanPath, `app.asar.unpacked/${cleanPath}`, `../app.asar.unpacked/${cleanPath}`, `../../app.asar.unpacked/${cleanPath}`];
+
+        let finalPath = cleanPath;
+        for (const testPath of testPaths) {
+          try {
+            const testResp = await fetch(testPath);
+            if (testResp.ok) {
+              finalPath = testPath;
+              break;
+            }
+          } catch {}
+        }
+
+        const url = `url('${finalPath}')`;
         root.style.setProperty(varName, url);
+        this.cursorMappings.set(key.toLowerCase(), finalPath);
 
-        this.cursorMappings.set(key.toLowerCase(), cleanPath);
-
-        console.log(`Mapping curseur: ${key} -> ${cleanPath}`);
+        console.log(`Mapping curseur: ${key} -> ${finalPath}`);
       }
     } catch (err) {
       console.warn('Could not load cursor mappings:', err);
     }
+  }
+
+  private async reloadCursorMappings(): Promise<void> {
+    console.log('Rechargement des mappings de curseurs...');
+    this.cursorMappings.clear();
+    await this.loadCursorMappings();
+
+    this.cursors.forEach((cursor, deviceId) => {
+      if (cursor.element) {
+        this.applyCursorStyle(cursor.element, cursor.cursorType);
+      }
+    });
   }
 
   private applyCursorStyle(element: HTMLElement, cursorType: string): void {

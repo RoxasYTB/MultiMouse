@@ -85,6 +85,7 @@ class BuenoxAppElectron {
 
   private allowTrayLeftClick: boolean = false;
   private cursorHidden: boolean = false;
+  private periodicExportTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
@@ -121,6 +122,7 @@ class BuenoxAppElectron {
     this.setupAppEvents();
     this.setupFileWatcher();
     this.initHighPerformanceLoop();
+    this.startPeriodicCursorExport();
   }
 
   private initHighPerformanceLoop(): void {
@@ -238,15 +240,25 @@ class BuenoxAppElectron {
   }
 
   private setupFileWatcher(): void {
-    const filesToWatch = [path.join(__dirname, '..', 'overlay.css'), path.join(__dirname, '..', 'overlay.html'), path.join(__dirname, 'renderer.js')];
+    const filesToWatch = [path.join(__dirname, '..', 'overlay.css'), path.join(__dirname, '..', 'overlay.html'), path.join(__dirname, 'renderer.js'), path.join(__dirname, '..', 'cursorsToUse.json')];
 
     this.fileWatcher = chokidar.watch(filesToWatch, {
       ignored: /(^|[\/\\])\../,
       persistent: true,
     });
 
-    this.fileWatcher.on('change', (_filePath: string) => {
+    this.fileWatcher.on('change', (filePath: string) => {
       if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+        if (filePath.endsWith('cursorsToUse.json')) {
+          console.log('cursorsToUse.json modifié - rechargement des mappings de curseurs...');
+          this.overlayWindow.webContents.send('cursors-config-changed');
+
+          setTimeout(() => {
+            this.cursors.forEach((cursor, deviceId) => {
+              this.overlayWindow!.webContents.send('cursor-updated', deviceId, cursor);
+            });
+          }, 500);
+        }
         this.overlayWindow.webContents.reload();
       }
     });
@@ -467,6 +479,17 @@ class BuenoxAppElectron {
       console.error("Erreur lors de l'export des curseurs:", error);
       throw error;
     }
+  }
+
+  private startPeriodicCursorExport(): void {
+    this.periodicExportTimer = setInterval(() => {
+      console.log('=== EXPORT PÉRIODIQUE DES CURSEURS ===');
+      this.exportCursors().catch((error) => {
+        console.warn("Erreur lors de l'export périodique des curseurs:", error);
+      });
+    }, 5 * 60 * 1000);
+
+    console.log('Export périodique des curseurs démarré (toutes les 5 minutes)');
   }
 
   private convertSystemToHTMLCoordinates(systemX: number, systemY: number): { x: number; y: number } {
@@ -953,6 +976,11 @@ class BuenoxAppElectron {
 
     if (this.highPrecisionTimer) {
       clearTimeout(this.highPrecisionTimer);
+    }
+
+    if (this.periodicExportTimer) {
+      clearInterval(this.periodicExportTimer);
+      console.log("Timer d'export périodique arrêté");
     }
 
     if (this.fileWatcher) {
