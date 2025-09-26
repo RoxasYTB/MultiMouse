@@ -1,4 +1,4 @@
-class BuenoxRenderer {
+class OrionixRenderer {
   private cursors: Map<string, any> = new Map();
   private config: any = null;
   private cursorsContainer: HTMLElement;
@@ -544,19 +544,19 @@ class BuenoxRenderer {
 
 document.addEventListener('DOMContentLoaded', () => {
   if (!document.querySelector('#renderer-ready')) {
-    new BuenoxRenderer();
+    new OrionixRenderer();
   }
 });
 
 window.addEventListener('load', () => {
   if (!document.querySelector('#renderer-ready')) {
-    new BuenoxRenderer();
+    new OrionixRenderer();
   }
 });
 
 setTimeout(() => {
   if (!document.querySelector('#renderer-ready')) {
-    new BuenoxRenderer();
+    new OrionixRenderer();
   }
 }, 1000);
 

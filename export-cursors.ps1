@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 # Détecter si nous sommes dans une distribution Electron
 $isDistribution = $false
-if ($env:PORTABLE_EXECUTABLE_DIR -or $env:LOCALAPPDATA -match "Buenox" -or (Test-Path "resources\app.asar")) {
+if ($env:PORTABLE_EXECUTABLE_DIR -or $env:LOCALAPPDATA -match "Orionix" -or (Test-Path "resources\app.asar")) {
     $isDistribution = $true
     Write-Host "Mode distribution détecté"
 }

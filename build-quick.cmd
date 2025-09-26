@@ -2,7 +2,7 @@
 setlocal
 
 echo ========================================
-echo    BUENOX - Build Rapide (Fix Blocage)
+echo    ORIONIX - Build Rapide (Fix Blocage)
 echo ========================================
 echo.
 
@@ -59,8 +59,8 @@ if exist "%BUILD_DIR%\locales" (
 echo [5/5] Création des archives optimisées...
 
 REM Créer ZIP manuellement (plus fiable)
-if exist "dist\Buenox-1.0.2-x64-win.zip" del "dist\Buenox-1.0.2-x64-win.zip"
-powershell -Command "Compress-Archive -Path 'dist\win-unpacked\*' -DestinationPath 'dist\Buenox-1.0.2-x64-win.zip' -CompressionLevel Optimal" 2>nul
+if exist "dist\Orionix-1.0.2-x64-win.zip" del "dist\Orionix-1.0.2-x64-win.zip"
+powershell -Command "Compress-Archive -Path 'dist\win-unpacked\*' -DestinationPath 'dist\Orionix-1.0.2-x64-win.zip' -CompressionLevel Optimal" 2>nul
 
 REM Créer l'installeur NSIS séparément si souhaité
 echo.

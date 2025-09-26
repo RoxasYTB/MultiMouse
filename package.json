@@ -1,16 +1,16 @@
 {
-  "name": "buenox",
+  "name": "orionix",
   "version": "1.0.3",
-  "description": "Application Buenox stable avec Electron.js",
+  "description": "Application Orionix stable avec Electron.js",
   "main": "dist/main.js",
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx",
     "clean": "npx rimraf dist out release dist-app-new .cache",
-    "build": "tsc && electron-rebuild --only=Buenox_raw_input",
+    "build": "tsc && electron-rebuild --only=Orionix_raw_input",
     "build-safe": "tsc",
     "rebuild-all": "electron-rebuild",
-    "rebuild-safe": "electron-rebuild --only=Buenox_raw_input",
-    "lastBuild": "npx electron-rebuild -f -w Buenox_raw_input --arch=x64 --runtime=electron --version 26.6.10",
+    "rebuild-safe": "electron-rebuild --only=Orionix_raw_input",
+    "lastBuild": "npx electron-rebuild -f -w Orionix_raw_input --arch=x64 --runtime=electron --version 26.6.10",
     "start": "powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && npm run build-safe && npx electron .",
     "start-safe": "powershell -ExecutionPolicy Bypass -File export-cursors.ps1 && npm run build-safe && npx electron .",
     "test-start": "npm run build-safe && npx electron . --debug",
@@ -32,7 +32,7 @@
     "watch": "tsc --watch"
   },
   "keywords": [
-    "Buenox",
+    "Orionix",
     "cursor",
     "overlay"
   ],
@@ -64,8 +64,8 @@
     "typescript": "^5.9.2"
   },
   "build": {
-    "appId": "com.Buenox.app",
-    "productName": "Buenox",
+    "appId": "com.Orionix.app",
+    "productName": "Orionix",
     "asar": true,
     "directories": {
       "output": "release"
@@ -81,7 +81,7 @@
       "cursorsToUse.json",
       "overlay.css",
       "config.json",
-      "build/Release/Buenox_raw_input.node",
+      "build/Release/Orionix_raw_input.node",
       "bin/**/*.node",
       "assets/**/**/*",
       "assets/**/*",
@@ -107,7 +107,7 @@
       "!**/demo/**"
     ],
     "compression": "normal",
-    "artifactName": "Buenox-${version}-${arch}-${os}.${ext}",
+    "artifactName": "Orionix-${version}-${arch}-${os}.${ext}",
     "afterPack": "scripts/afterPack.js",
     "win": {
       "target": [

@@ -1,6 +1,6 @@
 @echo off
 echo ===========================================
-echo            BUENOX - Démarrage complet
+echo            ORIONIX - Démarrage complet
 echo ===========================================
 echo.
 echo 1. Export et conversion des curseurs...

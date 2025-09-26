@@ -12,7 +12,7 @@ if (process.platform === 'win32') {
   exec('chcp 65001');
 }
 
-const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
 
 const DEFAULT_CONFIG: AppConfig = {
   sensitivity: 1.5,
@@ -41,7 +41,7 @@ interface CursorState {
   totalMovement: number;
 }
 
-class BuenoxAppElectron {
+class OrionixAppElectron {
   private overlayWindow: BrowserWindow | null = null;
   private config: AppConfig = { ...DEFAULT_CONFIG };
   private configPath: string;
@@ -98,7 +98,7 @@ class BuenoxAppElectron {
 
     console.log('Initialisation du gestionnaire de curseur système...');
     try {
-      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
 
       try {
         const shutdownHandlerResult = addon.setupShutdownHandler();
@@ -137,7 +137,7 @@ class BuenoxAppElectron {
     if (hasActiveCursors && !this.cursorHidden) {
       console.log('Masquage du curseur système (curseurs actifs détectés)...');
       try {
-        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
         const hideResult = addon.hideSystemCursor();
         this.cursorHidden = hideResult || false;
         console.log('Curseur système masqué:', hideResult);
@@ -147,7 +147,7 @@ class BuenoxAppElectron {
     } else if (!hasActiveCursors && this.cursorHidden) {
       console.log('Restauration du curseur système (aucun curseur actif)...');
       try {
-        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
         const showResult = addon.showSystemCursor();
         if (showResult) {
           this.cursorHidden = false;
@@ -538,7 +538,7 @@ class BuenoxAppElectron {
       }
 
       this.tray = new Tray(trayImage);
-      this.tray.setToolTip('Buenox');
+      this.tray.setToolTip('Orionix');
       this.updateTrayMenu();
 
       this.tray.on('click', () => {
@@ -949,7 +949,7 @@ class BuenoxAppElectron {
 
     console.log('Restauration du curseur système...');
     try {
-      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Buenox.node'));
+      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
       if (this.cursorHidden) {
         const showResult = addon.showSystemCursor();
         console.log('Curseur système restauré:', showResult);
@@ -1000,31 +1000,31 @@ class BuenoxAppElectron {
   }
 }
 
-const BuenoxApp = new BuenoxAppElectron();
+const OrionixApp = new OrionixAppElectron();
 
-console.log('Buenox Electron app started.');
+console.log('Orionix Electron app started.');
 
 process.on('uncaughtException', (_error: Error) => {
   console.log('Exception non capturée détectée, restauration des curseurs...');
-  BuenoxApp.shutdown();
+  OrionixApp.shutdown();
 });
 
 process.on('unhandledRejection', (_reason: any) => {});
 
 process.on('SIGINT', () => {
   console.log('Signal SIGINT reçu, restauration des curseurs...');
-  BuenoxApp.shutdown();
+  OrionixApp.shutdown();
 });
 
 process.on('SIGTERM', () => {
   console.log('Signal SIGTERM reçu, restauration des curseurs...');
-  BuenoxApp.shutdown();
+  OrionixApp.shutdown();
 });
 
 if (process.platform === 'win32') {
   process.on('SIGHUP', () => {
     console.log('Signal SIGHUP reçu, restauration des curseurs...');
-    BuenoxApp.shutdown();
+    OrionixApp.shutdown();
   });
 }
 

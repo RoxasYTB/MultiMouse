@@ -1,9 +1,9 @@
 {
   "targets": [
     {
-      "target_name": "Buenox_raw_input",
+      "target_name": "Orionix_raw_input",
       "sources": [
-        "src/Buenox_addon.cpp"
+        "src/Orionix_addon.cpp"
       ],
       "include_dirs": [
         "<!(node -e \"require('nan')\")"
