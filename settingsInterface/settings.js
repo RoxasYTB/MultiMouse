@@ -39,6 +39,7 @@ class SettingsManager {
 
     this.renderContent();
     this.renderSlides();
+    this.initRangeVisuals();
   }
 
   renderSlides() {
@@ -127,6 +128,29 @@ class SettingsManager {
     setTimeout(() => update(0), 50);
   }
 
+  initRangeVisuals() {
+    const ranges = Array.from(document.querySelectorAll('.range'));
+    ranges.forEach((r) => this.updateRangeVisual(r));
+  }
+
+  updateRangeVisual(rangeEl) {
+    if (!rangeEl) return;
+    const min = Number(rangeEl.min ?? 0);
+    const max = Number(rangeEl.max ?? 100);
+    const step = Number(rangeEl.step ?? 1);
+    const val = Number(rangeEl.value ?? min);
+    const pct = max > min ? ((val - min) / (max - min)) * 100 : 0;
+    rangeEl.style.setProperty('--fill', pct + '%');
+
+    const stepPct = max > min ? (step / (max - min)) * 100 : 10;
+
+    const safeStep = Math.max(stepPct, 1) + '%';
+    const parent = rangeEl.parentElement;
+    if (parent) parent.style.setProperty('--step-size', safeStep);
+    const display = document.querySelector(`[data-range-display-for="${rangeEl.dataset.setting}"]`);
+    if (display) display.textContent = String(val);
+  }
+
   renderContent() {
     const content = document.querySelector('.settings-content');
     const currentSection = this.config.sections?.[this.currentTab];
@@ -206,6 +230,7 @@ class SettingsManager {
         return `
           <div class="range-container">
             <input class="range" type="range" data-setting="${setting.id}" min="${setting.min ?? 0}" max="${setting.max ?? 100}" step="${setting.step ?? 1}" value="${setting.value ?? setting.min ?? 0}">
+            <div class="range-ticks" data-range-ticks-for="${setting.id}"></div>
             <div class="range-value" data-range-display-for="${setting.id}">${setting.value ?? setting.min ?? 0}</div>
           </div>
         `;
@@ -238,6 +263,7 @@ class SettingsManager {
       if (target.classList.contains('range')) {
         const display = document.querySelector(`[data-range-display-for="${target.dataset.setting}"]`);
         if (display) display.textContent = target.value;
+        this.updateRangeVisual(target);
       }
     });
 

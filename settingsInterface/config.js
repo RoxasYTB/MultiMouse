@@ -3,9 +3,41 @@ config = {
   subtitle: 'Customize your Orionix cursor experience.',
   sidebar: [
     {
+      id: 'display',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="59.7928554" height="60.2000013" fill="currentColor"
+   viewBox="0 0 15.820193 15.927917">
+   <path fill="currentColor"
+      d="M239.6851 109.13401c-.23812-.29105-.29104-.9525-.18521-2.16959.10584-1.56104.23813-1.87854.9525-2.51354.52917-.47625 1.13771-.74083 1.69334-.74083 5.37104-.10583 10.76854 0 11.2977.21167 1.19063.44979 1.64042 1.21708 1.77271 3.06916.10583 1.19063.0529 1.85208-.18521 2.14313-.50271.60854-14.84312.60854-15.34583 0m12.64708-2.59292.0794-1.00542-1.53458.0794c-1.50813.0794-1.53459.10583-1.56105.87312-.0265 1.00542.0794 1.05834 1.66688 1.05834h1.27zm-10.39812-4.25979c-.47625-.34396-.52917-.68792-.52917-4.259792 0-3.148541.0794-3.889375.39688-4.101041.52916-.343958 10.58333-.343958 11.1125 0 .3175.211666.39687.978958.39687 4.206874 0 2.169579-.10583 4.048129-.21167 4.180419-.13229.10583-2.56645.23812-5.42395.29104-4.25979.0529-5.31813 0-5.74146-.3175m9.39271-4.259792v-2.513541h-7.9375v5.027083h7.9375z"
+      style="fill-opacity:1;stroke-width:.0264583"
+      transform="translate(-239.44792 -93.662498)" />
+</svg>`,
+      active: false,
+    },
+    {
       id: 'settings',
       icon: `<svg xmlns="http://www.w3.org/2000/svg" width="59.9999887" height="59.9999924" viewBox="0 0 15.874997 15.874999"><path fill="currentColor" d="M6.5881222 14.7902062c-.4497916-1.4287498-1.2170832-1.7462498-2.5929163-1.0583332l-1.0054166.5291666-.6879166-.6879166-.6879165-.6879166.5556249-1.0583332c.6879166-1.3758331.396875-2.090208-1.0847915-2.5135413-1.031875-.3175-1.0847916-.396875-1.0847916-1.3758332s.0529167-1.0583332 1.0847916-1.3758331c1.5081248-.4233333 1.8256247-1.1906249 1.0583332-2.487083l-.5820833-.9789583.714375-.7408332.7143748-.7408333 1.0583332.5291666c1.3758332.714375 2.090208.4233333 2.5135414-1.0583332C6.8791639.0529164 6.9585389-3e-7 7.937497-3e-7c.9789574 0 1.0583324.0529167 1.3758324 1.0847915.4233333 1.4816665 1.1641665 1.7991665 2.5929163 1.1641666l1.0847916-.5027083.6614582.6879166.6614583.6614582-.5820833.9789582c-.7672916 1.2964582-.4497916 2.0637498 1.0583332 2.487083 1.0318749.3175 1.0847915.396875 1.0847915 1.3758332s-.0529166 1.0583332-1.0847915 1.3758332c-1.4816665.4233333-1.7727081 1.1377082-1.0847915 2.5135413l.5556249 1.0583332-.6879166.6879166-.6879166.6879166-1.0583332-.555625c-1.3758331-.6879165-2.090208-.3968749-2.5135413 1.0847916-.3175 1.0318749-.396875 1.0847915-1.3758324 1.0847915-.9789582 0-1.0583332-.0529166-1.3493748-1.0847915m3.4395821-4.8418744c.555625-.555625.6879166-.9524999.6879166-2.010833 0-1.8520832-.9260416-2.7781247-2.7781239-2.7781247-1.0847915 0-1.4287498.1322916-2.0372914.7408332-.6085416.5820833-.7408332.9524999-.7408332 2.010833 0 1.349375.5291666 2.2224998 1.5874998 2.6987497.9260415.396875 2.5399989.079375 3.2808321-.6614582"/></svg>`,
       active: true,
+    },
+    {
+      id: 'people',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 15.874998 13.749973">
+  <g fill="currentColor" stroke="currentColor" stroke-width=".0264583">
+    <path d="M.0000011 12.1624764c0-1.8785414.4233333-2.4606247 2.1695831-2.9368746 1.1377082-.2910417 1.6139581-.6879166 1.3758332-1.0847916-.079375-.1058333-.3704167-.2116666-.635-.2116666s-.7937499-.1058333-1.1641665-.2645833c-.6349999-.238125-.6614582-.2910416-.3175-1.1112499.2116667-.4762499.4497917-1.5610414.5291667-2.3812497.2910416-2.328333 1.6139581-3.4131245 3.7306245-3.0162496 1.0847915.2116667 1.9049998 1.1906249 2.1166664 2.5135414.079375.5291666.3439583 1.5874998.555625 2.3547913.2381249.79375.3439582 1.4816665.2910416 1.5610415-.079375.0529167-.635.1852083-1.2435416.2645833-1.4552081.2116667-1.3229165.8202082.3175 1.3758332 1.7197915.5820832 2.1431247 1.0847915 2.1960414 2.5929163.0264583.6879166 0 1.4287498-.079375 1.6139581-.079375.238125-1.3229165.3175-4.974166.3175H.000001Z"/>
+    <path d="M10.8479164 12.1218814c0-1.9579164-.2645833-2.6987497-1.1377081-3.1749996-.635-.3439583-.6614583-.396875-.2645833-1.0054166.3704166-.5556249.3704166-.7143749 0-1.7462497-.2116667-.6085416-.47625-1.6933332-.5820833-2.407708-.1058333-.714375-.3439583-1.5874999-.5820833-1.9049998-.4762499-.7408333-.3439583-.9789582.873125-1.5610415 1.2170831-.5820833 2.4341663-.3704166 3.3337495.6085416 1.2964582 1.3758332 1.1906249 4.3656244-.2116666 5.5827076-.396875.3439583-.6085416.7408333-.5291666.9789582.079375.238125.15875.5027083.15875.635 0 .1322916.6614582.3704166 1.4816664.5291666 2.1166664.4497916 2.487083.8995832 2.487083 3.1749996v1.852083h-5.0270827Z"/>
+    <g fill="#ee3d31"/>
+  </g>
+</svg>
+`,
+      active: false,
+    },
+    {
+      id: 'help',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" width="58.839942" height="15.67861mm"
+   viewBox="0 0 15.568067 15.678611">
+   <path fill="currentColor"
+      d="M5.9586868 15.4007976c-1.6404165-.3704166-3.6247925-1.772708-4.6566674-3.3072912C-1.0792303 8.5745484-.100272 3.6797574 3.4716038 1.324966c5.7414576-3.8099995 13.2027067 1.1377082 11.9591651 7.9639573-.5556249 2.9104163-3.0162496 5.450416-6.0060409 6.1118742-1.613958.3704167-1.852083.3704167-3.4660412 0m2.725208-3.2543746c.3175-.8202082-.4497916-1.613958-1.2699998-1.2964581-.4233333.15875-.6614583.8466665-.5027083 1.3758331.15875.4497916 1.5874998.396875 1.7727081-.079375m.1058333-2.963333c.0529167-.3174999.5027083-1.0054165 1.0054166-1.5081247 1.0054165-1.0054166 1.1112498-1.7462498.5291666-3.201458-.4497917-1.0583332-1.2435416-1.5345831-2.6193747-1.5345831-.79375 0-1.2170832.1852083-1.9314581.8995832C4.688687 4.8968406 4.6622286 5.161424 5.6411868 5.7435072c.7408333.4233333.7672916.4233333 1.1906249-.2116667.47625-.7408332 1.2435415-.8466665 1.7462498-.2645833.2645833.3175.15875.5820833-.6085416 1.4287499-.8995832.9789582-1.4552082 2.407708-1.1377082 2.9104163.079375.1322916.5291666.2116666 1.0054165.1852083.6879166-.0264584.8995833-.15875.9525-.6085416" />
+</svg>`,
+      active: false,
     },
     {
       id: 'leave',
@@ -15,37 +47,17 @@ config = {
     },
   ],
   tabs: [
-    { id: 'visuals', name: 'Visuals', active: true },
     { id: 'identification', name: 'Identification', active: false },
     { id: 'functional', name: 'Functional', active: false },
     { id: 'advanced', name: 'Advanced', active: false },
   ],
   sections: {
-    visuals: {
-      title: 'Cursor Settings',
-      settings: [
-        { id: 'normal', title: 'Normal Select', description: 'Standard arrow cursor for general selection.', type: 'toggle', enabled: true },
-        { id: 'text', title: 'Text Select', description: 'I-beam cursor for text selection.', type: 'toggle', enabled: true },
-        { id: 'hand', title: 'Hand Pointer', description: 'Hand cursor for clickable elements.', type: 'toggle', enabled: true },
-        { id: 'precision', title: 'Precision Select', description: 'Crosshair cursor for precise selection tasks.', type: 'toggle', enabled: true },
-        { id: 'wait', title: 'Wait', description: 'Hourglass or spinner for loading.', type: 'toggle', enabled: true },
-        { id: 'busy', title: 'Working in Background', description: 'Indicates background processes.', type: 'toggle', enabled: false },
-        { id: 'resize-vertical', title: 'Vertical Resize', description: 'Double arrow vertical resize.', type: 'toggle', enabled: true },
-        { id: 'resize-horizontal', title: 'Horizontal Resize', description: 'Double arrow horizontal resize.', type: 'toggle', enabled: true },
-        { id: 'resize-diagonal1', title: 'Diagonal Resize \\', description: 'Top-left to bottom-right.', type: 'toggle', enabled: true },
-        { id: 'resize-diagonal2', title: 'Diagonal Resize /', description: 'Top-right to bottom-left.', type: 'toggle', enabled: true },
-        { id: 'move', title: 'Move', description: 'Four-way arrow for dragging.', type: 'toggle', enabled: true },
-        { id: 'unavailable', title: 'Unavailable', description: 'Prohibited action cursor.', type: 'toggle', enabled: true },
-      ],
-    },
     identification: {
       title: 'Identification',
       settings: [
-        { id: 'color', title: 'Cursor Color', description: 'Assign unique colors per user.', type: 'color', value: '#00AEEF' },
+        { id: 'color', title: 'Cursor Colors', description: 'Assign unique colors per user.', type: 'toggle', enabled: true },
         { id: 'size', title: 'Cursor Size', description: 'Set the size of the cursor.', type: 'range', min: 0.5, max: 3, step: 0.1, value: 1 },
         { id: 'opacity', title: 'Opacity', description: 'Transparency level of the cursor.', type: 'range', min: 0.1, max: 1, step: 0.1, value: 1 },
-        { id: 'label', title: 'User Label', description: 'Show user ID above cursor.', type: 'toggle', enabled: true },
-        { id: 'icon', title: 'Custom Icon', description: 'Upload custom .cur/.ani file.', type: 'file', accept: ['.cur', '.ani'] },
       ],
     },
     functional: {
@@ -53,18 +65,13 @@ config = {
       settings: [
         { id: 'speed', title: 'Cursor Speed', description: 'Override default sensitivity.', type: 'range', min: 0.1, max: 5, step: 0.1, value: 1 },
         { id: 'acceleration', title: 'Acceleration', description: 'Enable or disable mouse acceleration.', type: 'toggle', enabled: true },
-        { id: 'zones', title: 'Screen Zones', description: 'Restrict cursor to specific areas.', type: 'multiselect', options: ['Left', 'Right', 'Top', 'Bottom'], value: [] },
-        { id: 'snap', title: 'Snap to Elements', description: 'Cursor magnetism to windows or buttons.', type: 'toggle', enabled: false },
-        { id: 'drawingMode', title: 'Drawing Mode', description: 'Enable drawing mode for Paint/Canvas.', type: 'toggle', enabled: false },
       ],
     },
     advanced: {
       title: 'Advanced Options',
       settings: [
-        { id: 'hotkeys', title: 'Hotkeys', description: 'Define shortcuts to hide/show cursors.', type: 'keymap', value: {} },
-        { id: 'profiles', title: 'Profiles', description: 'Save and load cursor profiles per user.', type: 'toggle', enabled: true },
-        { id: 'sync', title: 'Sync Actions', description: 'Allow simultaneous clicks.', type: 'toggle', enabled: false },
         { id: 'overlayDebug', title: 'Overlay Debug', description: 'Show debug info (coords, deviceID, FPS).', type: 'toggle', enabled: false },
+        { id: 'darkMode', title: 'Dark Mode', description: 'Enable dark mode for the overlay.', type: 'toggle', enabled: false },
       ],
     },
   },
