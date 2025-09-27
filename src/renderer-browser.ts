@@ -474,9 +474,6 @@ class OrionixRenderer {
 
     this.cursors.set(id, cursorInfo);
     this.lastPositions.set(id, { x: d.x || 400, y: d.y || 300 });
-
-    this.refreshCursorColors();
-
     this.updateInfoPanel();
   }
 
@@ -575,12 +572,9 @@ class OrionixRenderer {
       const cursorIndex = Number(index);
       if (this.config.colorIdentification && this.config.cursorColors) {
         const color = this.config.cursorColors[cursorIndex % this.config.cursorColors.length];
-
-        cursor.element.style.boxShadow = `0 0 15px 3px ${color}, 0 0 25px 6px ${color}80`;
-        cursor.element.style.borderColor = '';
-        cursor.element.style.filter = '';
+        cursor.element.style.borderColor = color;
+        cursor.element.style.filter = `hue-rotate(${cursorIndex * 90}deg)`;
       } else {
-        cursor.element.style.boxShadow = '';
         cursor.element.style.borderColor = '';
         cursor.element.style.filter = '';
       }
@@ -628,4 +622,5 @@ window.addEventListener('error', (e: ErrorEvent) => {
 window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
   console.error('Unhandled promise rejection:', e.reason);
 });
+
 

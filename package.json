@@ -1,6 +1,6 @@
 {
   "name": "orionix",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Application Orionix stable avec Electron.js",
   "main": "dist/main.js",
   "scripts": {

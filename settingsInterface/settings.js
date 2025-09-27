@@ -1,4 +1,4 @@
-import { ipcRenderer } from 'electron';
+const { ipcRenderer } = window.require ? window.require('electron') : {};
 
 class SettingsManager {
   constructor() {
@@ -543,5 +543,4 @@ class SettingsManager {
 document.addEventListener('DOMContentLoaded', () => {
   new SettingsManager();
 });
-
 
