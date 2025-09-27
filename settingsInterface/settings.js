@@ -1,14 +1,69 @@
+import { ipcRenderer } from 'electron';
+
 class SettingsManager {
   constructor() {
     this.config = window.config || {};
-    this.currentTab = this.config.tabs?.[0]?.id || 'cursors';
+    this.currentTab = this.config.tabs?.[0]?.id || 'identification';
+    this.currentSettings = {};
     this.init();
   }
 
   init() {
+    this.setupElectronIPC();
     this.loadSavedSettings();
     this.render();
     this.attachEventListeners();
+  }
+
+  setupElectronIPC() {
+    ipcRenderer.on('settings-config', (event, config) => {
+      console.log('Configuration reçue depuis main:', config);
+      this.currentSettings = config;
+      this.updateUIWithCurrentSettings();
+    });
+
+    ipcRenderer.on('current-config', (event, config) => {
+      console.log('Configuration actuelle reçue:', config);
+      this.currentSettings = config;
+      this.updateUIWithCurrentSettings();
+    });
+
+    ipcRenderer.send('get-current-config');
+  }
+
+  updateUIWithCurrentSettings() {
+    const opacitySlider = document.getElementById('opacity-slider');
+    const speedSlider = document.getElementById('speed-slider');
+
+    if (opacitySlider && this.currentSettings.cursorOpacity !== undefined) {
+      opacitySlider.value = this.currentSettings.cursorOpacity;
+    }
+
+    if (speedSlider && this.currentSettings.cursorSpeed !== undefined) {
+      speedSlider.value = this.currentSettings.cursorSpeed;
+    }
+
+    this.updateDropdown('color', this.currentSettings.colorIdentification);
+    this.updateDropdown('acceleration', this.currentSettings.acceleration);
+    this.updateDropdown('overlayDebug', this.currentSettings.overlayDebug);
+
+    this.initRangeVisuals();
+  }
+
+  updateDropdown(settingId, value) {
+    const dropdown = document.querySelector(`select[data-setting="${settingId}"]`);
+    if (dropdown) {
+      dropdown.value = value ? 'on' : 'off';
+    }
+  }
+
+  sendSettingsToMain(settings) {
+    console.log('Envoi des paramètres à main:', settings);
+    ipcRenderer.send('settings-changed', settings);
+  }
+
+  closeSettingsWindow() {
+    ipcRenderer.send('close-settings-window');
   }
 
   render() {
@@ -216,20 +271,20 @@ class SettingsManager {
       `;
       case 'toggle':
         return `
-          <div class="dropdown-container toggle-dropdown">
-            <select class="dropdown" data-setting="${setting.id}">
-              <option value="on" ${setting.enabled ? 'selected' : ''}>On</option>
-              <option value="off" ${!setting.enabled ? 'selected' : ''}>Off</option>
-            </select>
-            <svg class="dropdown-arrow" viewBox="0 0 24 24">
-              <path d="M7 10l5 5 5-5z"></path>
-            </svg>
-          </div>
-        `;
+        <div class="dropdown-container">
+          <select class="dropdown" data-setting="${setting.id}">
+            <option value="on" ${setting.enabled ? 'selected' : ''}>On</option>
+            <option value="off" ${!setting.enabled ? 'selected' : ''}>Off</option>
+          </select>
+          <svg class="dropdown-arrow" viewBox="0 0 24 24">
+            <path d="M7 10l5 5 5-5z"></path>
+          </svg>
+        </div>
+      `;
       case 'range':
         return `
           <div class="range-container">
-            <input class="range" type="range" data-setting="${setting.id}" min="${setting.min ?? 0}" max="${setting.max ?? 100}" step="${setting.step ?? 1}" value="${setting.value ?? setting.min ?? 0}">
+            <input class="range" type="range" id="${setting.id}-slider" data-setting="${setting.id}" min="${setting.min ?? 0}" max="${setting.max ?? 100}" step="${setting.step ?? 1}" value="${setting.value ?? setting.min ?? 0}">
             <div class="range-ticks" data-range-ticks-for="${setting.id}"></div>
             <div class="range-value" data-range-display-for="${setting.id}">${setting.value ?? setting.min ?? 0}</div>
           </div>
@@ -254,6 +309,8 @@ class SettingsManager {
       if (item && !item.classList.contains('last')) {
         const index = Number(item.dataset.index);
         this.switchSidebarItem(index);
+      } else if (item && item.classList.contains('last')) {
+        this.closeSettingsWindow();
       }
     });
 
@@ -276,29 +333,65 @@ class SettingsManager {
           value = Array.from(target.selectedOptions).map((o) => o.value);
         } else {
           value = target.value;
+
+          if (value === 'on') value = true;
+          if (value === 'off') value = false;
         }
         this.updateSetting(target.dataset.setting, value);
+        this.sendSettingUpdate(target.dataset.setting, value);
         return;
       }
 
       if (target.classList.contains('range')) {
-        this.updateSetting(target.dataset.setting, Number(target.value));
+        const value = Number(target.value);
+        this.updateSetting(target.dataset.setting, value);
+        this.sendSettingUpdate(target.dataset.setting, value);
         return;
       }
 
       if (target.classList.contains('color')) {
         this.updateSetting(target.dataset.setting, target.value);
+        this.sendSettingUpdate(target.dataset.setting, target.value);
         return;
       }
 
       if (target.classList.contains('file')) {
         const files = Array.from(target.files || []).map((f) => f.name);
         this.updateSetting(target.dataset.setting, files);
+        this.sendSettingUpdate(target.dataset.setting, files);
+        return;
+      }
+
+      if (target.type === 'checkbox') {
+        const settingId = target.id.replace('-toggle', '');
+        this.updateSetting(settingId, target.checked);
+        this.sendSettingUpdate(settingId, target.checked);
         return;
       }
     });
 
     this.handleResponsive();
+  }
+
+  sendSettingUpdate(settingId, value) {
+    const settingMap = {
+      color: 'colorIdentification',
+      opacity: 'cursorOpacity',
+      speed: 'cursorSpeed',
+      acceleration: 'acceleration',
+      overlayDebug: 'overlayDebug',
+    };
+
+    const configKey = settingMap[settingId] || settingId;
+
+    let adjustedValue = value;
+
+    const settings = {
+      [configKey]: adjustedValue,
+    };
+
+    console.log(`Mise à jour du paramètre ${settingId} -> ${configKey}:`, adjustedValue);
+    this.sendSettingsToMain(settings);
   }
 
   switchTab(tabId) {
@@ -314,6 +407,22 @@ class SettingsManager {
 
   switchSidebarItem(index) {
     if (this.config.sidebar) {
+      const item = this.config.sidebar[index];
+      const itemId = item?.id;
+
+      switch (itemId) {
+        case 'display':
+          return;
+        case 'people':
+        case 'help':
+          window.open('https://aperture-sciences/support', '_blank');
+          return;
+        case 'settings':
+          break;
+        default:
+          break;
+      }
+
       this.config.sidebar.forEach((item, i) => {
         item.active = i === index;
       });
@@ -434,4 +543,5 @@ class SettingsManager {
 document.addEventListener('DOMContentLoaded', () => {
   new SettingsManager();
 });
+
 

@@ -47,56 +47,20 @@ config = {
     },
   ],
   tabs: [
-    { id: 'identification', name: 'Identification', active: false },
     { id: 'functional', name: 'Functional', active: false },
-    { id: 'advanced', name: 'Advanced', active: false },
+    { id: 'advanced', name: 'Advanced [Coming Soon.]', active: false },
   ],
   sections: {
-    identification: {
-      title: 'Identification',
-      settings: [
-        { id: 'color', title: 'Cursor Colors', description: 'Assign unique colors per user.', type: 'toggle', enabled: true },
-        { id: 'size', title: 'Cursor Size', description: 'Set the size of the cursor.', type: 'range', min: 0.5, max: 3, step: 0.1, value: 1 },
-        { id: 'opacity', title: 'Opacity', description: 'Transparency level of the cursor.', type: 'range', min: 0.1, max: 1, step: 0.1, value: 1 },
-      ],
-    },
     functional: {
       title: 'Functional Settings',
       settings: [
         { id: 'speed', title: 'Cursor Speed', description: 'Override default sensitivity.', type: 'range', min: 0.1, max: 5, step: 0.1, value: 1 },
         { id: 'acceleration', title: 'Acceleration', description: 'Enable or disable mouse acceleration.', type: 'toggle', enabled: true },
-      ],
-    },
-    advanced: {
-      title: 'Advanced Options',
-      settings: [
-        { id: 'overlayDebug', title: 'Overlay Debug', description: 'Show debug info (coords, deviceID, FPS).', type: 'toggle', enabled: false },
-        { id: 'darkMode', title: 'Dark Mode', description: 'Enable dark mode for the overlay.', type: 'toggle', enabled: false },
+        { id: 'overlayDebug', title: 'Overlay Debug', description: 'Show debug info (coords, deviceID, FPS). [Coming Soon.]', type: 'toggle', enabled: false },
+        { id: 'color', title: 'Cursor Colors', description: 'Assign unique colors per user. [Coming Soon.]', type: 'toggle', enabled: true },
+        { id: 'opacity', title: 'Opacity', description: 'Transparency level of the cursor.', type: 'range', min: 0.1, max: 1, step: 0.1, value: 1 },
       ],
     },
   },
-
-  slides: [
-    {
-      title: 'Nouveautés',
-      text: "Découvrez les dernières améliorations d'Orionix : meilleure détection et nouvelles icônes.",
-      cta: 'En savoir plus',
-      onClick: "console.log('Show release notes')",
-    },
-    {
-      title: 'Astuce rapide',
-      text: 'Activez le mode « Identification » pour voir les labels utilisateurs au-dessus des curseurs.',
-      cta: 'Activer',
-      onClick: "config.sections.identification.settings.find(s=>s.id==='label').enabled = true; localStorage.setItem('orionix-cursor-settings', JSON.stringify(config)); window.location.reload();",
-    },
-    {
-      title: 'Personnalisation',
-      text: "Chargez vos propres curseurs .cur/.ani dans l'onglet Identification.",
-      cta: 'Importer',
-      onClick: "console.log('Open import dialog')",
-    },
-  ],
-  slidesAutoplay: true,
-  slidesAutoplayInterval: 6000,
 };
 

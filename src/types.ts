@@ -52,8 +52,13 @@ export interface AppConfig {
   cursorColors: string[];
   highPerformanceMode: boolean;
   precisePositioning: boolean;
-
   allowTrayLeftClick?: boolean;
+
+  colorIdentification: boolean;
+  cursorOpacity: number;
+  cursorSpeed: number;
+  acceleration: boolean;
+  overlayDebug: boolean;
 }
 
 export interface DeviceChangeData {

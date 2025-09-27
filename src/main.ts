@@ -1,6 +1,6 @@
 import { exec } from 'child_process';
 import * as chokidar from 'chokidar';
-import { app, BrowserWindow, Display, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
+import { app, BrowserWindow, Display, globalShortcut, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -23,6 +23,12 @@ const DEFAULT_CONFIG: AppConfig = {
   highPerformanceMode: true,
   precisePositioning: true,
   allowTrayLeftClick: false,
+
+  colorIdentification: true,
+  cursorOpacity: 1.0,
+  cursorSpeed: 1.0,
+  acceleration: true,
+  overlayDebug: false,
 };
 
 interface CursorState {
@@ -43,6 +49,7 @@ interface CursorState {
 
 class OrionixAppElectron {
   private overlayWindow: BrowserWindow | null = null;
+  private settingsWindow: BrowserWindow | null = null;
   private config: AppConfig = { ...DEFAULT_CONFIG };
   private configPath: string;
   private cursors: Map<string, CursorState> = new Map();
@@ -123,6 +130,7 @@ class OrionixAppElectron {
     this.setupFileWatcher();
     this.initHighPerformanceLoop();
     this.startPeriodicCursorExport();
+    this.setupSettingsIPC();
   }
 
   private initHighPerformanceLoop(): void {
@@ -329,6 +337,9 @@ class OrionixAppElectron {
       this.createOverlayWindow();
       this.createTray();
       this.setupIPC();
+      this.setupGlobalShortcuts();
+
+      Menu.setApplicationMenu(null);
 
       screen.on('display-metrics-changed', () => {
         this.updateScreenDimensions();
@@ -555,6 +566,10 @@ class OrionixAppElectron {
           }
         }
       });
+
+      this.tray.on('double-click', () => {
+        this.openSettingsWindow();
+      });
     } catch (error) {
       console.error('Erreur lors de la création de la tray:', error);
     }
@@ -565,6 +580,15 @@ class OrionixAppElectron {
 
     const contextMenu = Menu.buildFromTemplate([
       {
+        label: 'Paramètres',
+        click: () => {
+          this.openSettingsWindow();
+        },
+      },
+      {
+        type: 'separator',
+      },
+      {
         label: 'Quitter',
         click: () => {
           this.shutdown();
@@ -573,6 +597,134 @@ class OrionixAppElectron {
     ]);
 
     this.tray.setContextMenu(contextMenu);
+  }
+
+  private openSettingsWindow(): void {
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      this.settingsWindow.focus();
+      return;
+    }
+
+    this.createSettingsWindow();
+  }
+
+  private createSettingsWindow(): void {
+    console.log('Création de la fenêtre de settings...');
+
+    this.settingsWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 1000,
+      minHeight: 700,
+      maxWidth: 1400,
+      maxHeight: 1000,
+      frame: true,
+      transparent: false,
+      resizable: true,
+      show: false,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        webSecurity: false,
+        devTools: true,
+      },
+      icon: path.join(__dirname, '..', 'assets', 'icon.ico'),
+      title: 'Orionix - Paramètres',
+    });
+
+    this.settingsWindow.loadFile(path.join(__dirname, '..', 'settingsInterface', 'settings.html'));
+
+    this.settingsWindow.once('ready-to-show', () => {
+      console.log('Fenêtre de settings prête, affichage...');
+
+      this.settingsWindow!.setSize(1400, 1000);
+      this.settingsWindow!.center();
+      this.settingsWindow!.show();
+
+      this.settingsWindow!.setMenu(null);
+
+      this.settingsWindow!.webContents.send('settings-config', this.config);
+    });
+
+    this.settingsWindow.on('closed', () => {
+      console.log('Fenêtre de settings fermée');
+      this.settingsWindow = null;
+    });
+
+    this.settingsWindow.webContents.on('did-finish-load', () => {
+      this.setupSettingsIPC();
+    });
+  }
+
+  private setupSettingsIPC(): void {
+    ipcMain.on('settings-changed', (event, newSettings) => {
+      console.log('Configuration mise à jour:', newSettings);
+      this.updateConfig(newSettings);
+    });
+
+    ipcMain.on('get-current-config', (event) => {
+      event.reply('current-config', this.config);
+    });
+
+    ipcMain.on('close-settings-window', () => {
+      if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+        this.settingsWindow.close();
+      }
+    });
+  }
+
+  private updateConfig(newSettings: Partial<AppConfig>): void {
+    this.config = { ...this.config, ...newSettings };
+
+    this.saveConfig();
+
+    this.applySettingsChanges(newSettings);
+
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      this.overlayWindow.webContents.send('settings-updated', this.config);
+    }
+  }
+
+  private applySettingsChanges(newSettings: Partial<AppConfig>): void {
+    if (newSettings.cursorSpeed !== undefined) {
+      this.config.sensitivity = newSettings.cursorSpeed;
+    }
+
+    if (newSettings.cursorOpacity !== undefined && this.overlayWindow) {
+      this.config.cursorOpacity = newSettings.cursorOpacity;
+      this.overlayWindow.webContents.send('update-cursor-opacity', newSettings.cursorOpacity);
+    }
+
+    if (newSettings.overlayDebug !== undefined && this.overlayWindow) {
+      this.config.overlayDebug = newSettings.overlayDebug;
+      this.overlayWindow.webContents.send('toggle-debug-mode', newSettings.overlayDebug);
+    }
+
+    if (newSettings.colorIdentification !== undefined && this.overlayWindow) {
+      this.config.colorIdentification = newSettings.colorIdentification;
+      this.overlayWindow.webContents.send('update-color-identification', newSettings.colorIdentification);
+    }
+
+    if (newSettings.acceleration !== undefined) {
+      this.config.acceleration = newSettings.acceleration;
+    }
+
+    this.saveConfig();
+
+    console.log('Paramètres appliqués:', newSettings);
+  }
+
+  private setupGlobalShortcuts(): void {
+    globalShortcut.register('CommandOrControl+Shift+S', () => {
+      console.log('Raccourci paramètres activé');
+      this.openSettingsWindow();
+    });
+
+    globalShortcut.register('CommandOrControl+Shift+D', () => {
+      console.log('Raccourci debug activé');
+      this.config.overlayDebug = !this.config.overlayDebug;
+      this.applySettingsChanges({ overlayDebug: this.config.overlayDebug });
+    });
   }
 
   private centerSystemCursor(): void {
@@ -731,6 +883,8 @@ class OrionixAppElectron {
         devTools: true,
       },
     });
+
+    this.overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
 
     this.overlayWindow.loadFile(path.join(__dirname, '..', 'overlay.html'));
 
@@ -987,6 +1141,11 @@ class OrionixAppElectron {
       this.fileWatcher.close();
     }
 
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      this.settingsWindow.close();
+      this.settingsWindow = null;
+    }
+
     if (this.mouseDetector) {
       this.mouseDetector.stop();
     }
@@ -994,6 +1153,8 @@ class OrionixAppElectron {
     if (this.cursorTypeDetector) {
       this.cursorTypeDetector.stop();
     }
+
+    globalShortcut.unregisterAll();
 
     this.saveConfig();
     app.quit();

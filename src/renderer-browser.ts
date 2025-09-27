@@ -49,6 +49,10 @@ class OrionixRenderer {
           this.config = d;
           this.updateInfoPanel();
         },
+        'settings-updated': (d: any) => this.handleSettingsUpdate(d),
+        'update-cursor-opacity': (opacity: number) => this.updateCursorOpacity(opacity),
+        'update-color-identification': (enabled: boolean) => this.updateColorIdentification(enabled),
+        'toggle-debug-mode': (enabled: boolean) => this.toggleDebugMode(enabled),
         'cursor-type-changed': (d: any) => this.updateCursorType(d),
         'cursors-visibility-update': (d: any) => this.updateCursorsVisibility(d),
         'cursors-config-changed': () => this.reloadCursorMappings(),
@@ -470,6 +474,9 @@ class OrionixRenderer {
 
     this.cursors.set(id, cursorInfo);
     this.lastPositions.set(id, { x: d.x || 400, y: d.y || 300 });
+
+    this.refreshCursorColors();
+
     this.updateInfoPanel();
   }
 
@@ -538,6 +545,60 @@ class OrionixRenderer {
       deviceId: `pointer_${e.pointerId}`,
       deltaX: e.movementX,
       deltaY: e.movementY,
+    });
+  }
+
+  private handleSettingsUpdate(settings: any): void {
+    console.log('Settings updated in renderer:', settings);
+    this.config = { ...this.config, ...settings };
+    this.updateInfoPanel();
+  }
+
+  private updateCursorOpacity(opacity: number): void {
+    console.log('Updating cursor opacity:', opacity);
+    const cursorsContainer = document.getElementById('cursors-container');
+    if (cursorsContainer) {
+      cursorsContainer.style.opacity = opacity.toString();
+    }
+  }
+
+  private updateColorIdentification(enabled: boolean): void {
+    console.log('Updating color identification:', enabled);
+
+    this.config.colorIdentification = enabled;
+
+    this.refreshCursorColors();
+  }
+
+  private refreshCursorColors(): void {
+    this.cursors.forEach((cursor, index) => {
+      const cursorIndex = Number(index);
+      if (this.config.colorIdentification && this.config.cursorColors) {
+        const color = this.config.cursorColors[cursorIndex % this.config.cursorColors.length];
+
+        cursor.element.style.boxShadow = `0 0 15px 3px ${color}, 0 0 25px 6px ${color}80`;
+        cursor.element.style.borderColor = '';
+        cursor.element.style.filter = '';
+      } else {
+        cursor.element.style.boxShadow = '';
+        cursor.element.style.borderColor = '';
+        cursor.element.style.filter = '';
+      }
+    });
+  }
+
+  private toggleDebugMode(enabled: boolean): void {
+    console.log('Toggling debug mode:', enabled);
+    const debugInfo = document.getElementById('debug-info');
+    if (debugInfo) {
+      debugInfo.style.display = enabled ? 'block' : 'none';
+    }
+
+    this.cursors.forEach((cursor) => {
+      const coordsElement = cursor.element.querySelector('.cursor-coords');
+      if (coordsElement) {
+        coordsElement.style.display = enabled ? 'block' : 'none';
+      }
     });
   }
 }

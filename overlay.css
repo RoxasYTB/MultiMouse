@@ -184,3 +184,79 @@ html {
       transition: opacity 1s ease-in-out;
       opacity: 1;
 }
+
+body.dark-mode {
+      background-color: rgba(0, 0, 0, 0.1);
+}
+
+body.dark-mode .info-panel {
+      background-color: rgba(20, 20, 20, 0.95);
+      color: #ffffff;
+      border: 1px solid #444;
+}
+
+body.dark-mode .info-panel h3 {
+      color: #ffffff;
+}
+
+#debug-info {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 10px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+      border-radius: 5px;
+      z-index: 10000;
+      display: none;
+      pointer-events: none;
+}
+
+.cursor-coords {
+      position: absolute;
+      top: -25px;
+      left: 0;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 2px 5px;
+      font-size: 10px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 1002;
+      display: none;
+}
+
+.cursor-label {
+      position: absolute;
+      top: -30px;
+      left: 0;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      padding: 2px 6px;
+      font-size: 11px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 1002;
+      font-family: 'Segoe UI', sans-serif;
+}
+
+.cursor-label,
+.cursor-coords {
+      animation: fadeInLabel 0.3s ease-out;
+}
+
+@keyframes fadeInLabel {
+      from {
+            opacity: 0;
+            transform: translateY(-5px);
+      }
+
+      to {
+            opacity: 1;
+            transform: translateY(0);
+      }
+}
