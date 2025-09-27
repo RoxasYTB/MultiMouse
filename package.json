@@ -73,6 +73,7 @@
     "files": [
       "dist/**",
       "dist/*.d.ts",
+      "settingsInterface/**",
       "overlay.html",
       "export-cursors.ps1",
       "ani-to-gif.mjs",
@@ -130,6 +131,7 @@
       "ani-to-gif.mjs",
       "cursors.json",
       "cursorsToUse.json",
+      "settingsInterface/**",
       "dist/**",
       "bin/**/*"
     ],
