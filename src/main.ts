@@ -56,6 +56,9 @@ class OrionixAppElectron {
   private isShuttingDown: boolean = false;
   private lastActiveDevice: string | null = null;
 
+  private displays: Display[] = [];
+  private displayBounds: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
+
   private screenWidth: number = 800;
   private screenHeight: number = 600;
 
@@ -877,16 +880,28 @@ class OrionixAppElectron {
 
   sendInstantCursorUpdate(cursor: CursorState): void {
     if (cursor.hasMovedOnce) {
-      this.sendToAllOverlays('cursor-position-update', {
-        deviceId: cursor.id,
-        x: cursor.x,
-        y: cursor.y,
-        cursorType: cursor.cursorType,
-        cursorCSS: cursor.cursorCSS,
-        cursorFile: cursor.cursorFile,
-        timestamp: performance.now(),
-        isActive: cursor.id === this.lastActiveDevice,
-      });
+      const targetDisplayId = this.getDisplayForPosition(cursor.x, cursor.y);
+
+      if (targetDisplayId && this.overlayWindows.size > 1) {
+        this.sendCursorToSpecificDisplay(cursor, targetDisplayId);
+
+        this.overlayWindows.forEach((window, displayId) => {
+          if (displayId !== targetDisplayId && window && !window.isDestroyed()) {
+            window.webContents.send('hide-cursor', cursor.id);
+          }
+        });
+      } else {
+        this.sendToAllOverlays('cursor-position-update', {
+          deviceId: cursor.id,
+          x: cursor.x,
+          y: cursor.y,
+          cursorType: cursor.cursorType,
+          cursorCSS: cursor.cursorCSS,
+          cursorFile: cursor.cursorFile,
+          timestamp: performance.now(),
+          isActive: cursor.id === this.lastActiveDevice,
+        });
+      }
     }
   }
 
@@ -954,14 +969,25 @@ class OrionixAppElectron {
 
     this.closeAllOverlays();
 
-    const displays = screen.getAllDisplays();
-    console.log(`Nombre d'ecrans detectes: ${displays.length}`);
+    this.displays = screen.getAllDisplays();
+    this.displayBounds.clear();
 
-    displays.forEach((display, index) => {
+    console.log(`Nombre d'ecrans detectes: ${this.displays.length}`);
+
+    this.analyzeDisplayConfiguration();
+
+    this.displays.forEach((display, index) => {
       console.log(`Creation overlay pour ecran ${index + 1}:`, {
         id: display.id,
         bounds: display.bounds,
         size: display.size,
+      });
+
+      this.displayBounds.set(display.id, {
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
       });
 
       const overlayWindow = new BrowserWindow({
@@ -996,6 +1022,7 @@ class OrionixAppElectron {
           bounds: display.bounds,
           size: display.size,
           isPrimary: display.id === screen.getPrimaryDisplay().id,
+          displayIndex: index,
         });
 
         if (index === 0) {
@@ -1008,6 +1035,7 @@ class OrionixAppElectron {
       overlayWindow.on('closed', () => {
         console.log(`Fenêtre overlay ${index + 1} fermée`);
         this.overlayWindows.delete(display.id);
+        this.displayBounds.delete(display.id);
       });
 
       overlayWindow.on('close', (e) => {
@@ -1028,6 +1056,61 @@ class OrionixAppElectron {
       }
     });
     this.overlayWindows.clear();
+    this.displayBounds.clear();
+  }
+
+  private analyzeDisplayConfiguration(): void {
+    if (this.displays.length < 2) {
+      console.log('Configuration mono-écran détectée');
+      return;
+    }
+
+    console.log('🖥️ Analyse de la configuration multi-écrans...');
+
+    const sortedDisplays = [...this.displays].sort((a, b) => a.bounds.x - b.bounds.x);
+
+    sortedDisplays.forEach((display, index) => {
+      const isLeft = index === 0;
+      const isRight = index === sortedDisplays.length - 1;
+
+      console.log(`📺 Écran ${index + 1}:`, {
+        id: display.id,
+        position: `${display.bounds.x}, ${display.bounds.y}`,
+        size: `${display.bounds.width}x${display.bounds.height}`,
+        role: isLeft ? 'gauche' : isRight ? 'droite' : 'centre',
+      });
+    });
+  }
+
+  private getDisplayForPosition(x: number, y: number): number | null {
+    for (const [displayId, bounds] of this.displayBounds.entries()) {
+      if (x >= bounds.x && x < bounds.x + bounds.width && y >= bounds.y && y < bounds.y + bounds.height) {
+        return displayId;
+      }
+    }
+    return null;
+  }
+
+  private sendCursorToSpecificDisplay(cursor: CursorState, targetDisplayId: number): void {
+    const targetWindow = this.overlayWindows.get(targetDisplayId);
+    if (targetWindow && !targetWindow.isDestroyed()) {
+      const displayBounds = this.displayBounds.get(targetDisplayId);
+      if (displayBounds) {
+        const localX = cursor.x - displayBounds.x;
+        const localY = cursor.y - displayBounds.y;
+
+        targetWindow.webContents.send('cursor-position-update', {
+          deviceId: cursor.id,
+          x: localX,
+          y: localY,
+          cursorType: cursor.cursorType,
+          cursorCSS: cursor.cursorCSS,
+          cursorFile: cursor.cursorFile,
+          timestamp: performance.now(),
+          isActive: cursor.id === this.lastActiveDevice,
+        });
+      }
+    }
   }
 
   private sendExistingCursorsToRenderer(): void {

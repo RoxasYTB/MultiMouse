@@ -608,26 +608,9 @@ class SettingsManager {
   resetSettings() {
     console.log('Resetting settings...');
 
-    if (this.config.sections) {
-      Object.values(this.config.sections).forEach((section) => {
-        section.settings?.forEach((setting) => {
-          if (setting.type === 'range') {
-            let defaultValue = 1;
-            if (setting.id === 'opacity') defaultValue = 1;
-            if (setting.id === 'speed') defaultValue = 0.9;
-            setting.value = defaultValue;
-          } else if (setting.type === 'toggle') {
-            let defaultEnabled = true;
-            if (setting.id === 'overlayDebug') defaultEnabled = false;
-            setting.enabled = defaultEnabled;
-          }
-        });
-      });
-    }
-
     const defaultSettings = {
-      sensitivity: 0.9,
-      refreshRate: 16,
+      sensitivity: 1.5,
+      refreshRate: 1,
       maxCursors: 4,
       cursorSize: 20,
       cursorColors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
@@ -635,25 +618,47 @@ class SettingsManager {
       precisePositioning: true,
       allowTrayLeftClick: false,
       colorIdentification: true,
-      cursorOpacity: 1,
-      cursorSpeed: 0.9,
+      cursorOpacity: 1.0,
+      cursorSpeed: 1.0,
       acceleration: true,
       overlayDebug: false,
     };
 
-    if (ipcRenderer) {
-      ipcRenderer.send('reset-all-settings', defaultSettings);
+    this.currentSettings = { ...defaultSettings };
+
+    if (this.config.sections) {
+      Object.values(this.config.sections).forEach((section) => {
+        section.settings?.forEach((setting) => {
+          if (setting.type === 'range') {
+            if (setting.id === 'opacity') setting.value = defaultSettings.cursorOpacity;
+            else if (setting.id === 'speed') setting.value = defaultSettings.cursorSpeed;
+            else if (setting.id === 'sensitivity') setting.value = defaultSettings.sensitivity;
+            else setting.value = defaultSettings[setting.id] || setting.value;
+          } else if (setting.type === 'toggle') {
+            if (setting.id === 'color') setting.enabled = defaultSettings.colorIdentification;
+            else if (setting.id === 'acceleration') setting.enabled = defaultSettings.acceleration;
+            else if (setting.id === 'overlayDebug') setting.enabled = defaultSettings.overlayDebug;
+            else setting.enabled = defaultSettings[setting.id] !== undefined ? defaultSettings[setting.id] : setting.enabled;
+          }
+        });
+      });
     }
 
-    this.sendSettingsToMain(defaultSettings);
-    this.currentSettings = defaultSettings;
+    if (ipcRenderer) {
+      console.log('🔄 Envoi des settings par défaut au main process...');
+      ipcRenderer.send('reset-all-settings', defaultSettings);
+    }
 
     localStorage.removeItem('orionix-cursor-settings');
 
     this.render();
-    this.updateUIWithCurrentSettings();
 
-    console.log('Settings have been reset to defaults');
+    setTimeout(() => {
+      this.updateUIWithCurrentSettings();
+      console.log('✅ Interface settings mise à jour avec les valeurs par défaut');
+    }, 100);
+
+    console.log('Settings have been reset to defaults:', defaultSettings);
   }
 }
 

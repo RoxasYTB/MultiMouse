@@ -45,6 +45,7 @@ class OrionixRenderer {
         'cursor-position-update': (d: any) => this.handleHighPrecisionUpdate(d),
         'cursors-instant-update': (d: any) => this.handleInstantUpdate(d),
         'cursor-removed': (d: string) => this.removeCursor(d),
+        'hide-cursor': (deviceId: string) => this.hideCursor(deviceId),
         'devices-updated': (d: { count: number }) => (this.deviceCount.textContent = d.count.toString()),
         'config-updated': (d: any) => {
           this.config = d;
@@ -58,6 +59,7 @@ class OrionixRenderer {
         'cursors-visibility-update': (d: any) => this.updateCursorsVisibility(d),
         'cursors-config-changed': () => this.reloadCursorMappings(),
         'system-cursor-size': (size: number) => this.handleSystemCursorSize(size),
+        'screen-info': (d: any) => this.handleScreenInfo(d),
       };
 
       for (const [evt, fn] of Object.entries(handlers)) {
@@ -294,6 +296,30 @@ class OrionixRenderer {
     this.pendingUpdates.clear();
   }
 
+  private hideCursor(deviceId: string): void {
+    console.log(`🫥 Masquage du curseur: ${deviceId}`);
+    const cursor = this.cursors.get(deviceId);
+    if (cursor && cursor.element) {
+      cursor.element.style.opacity = '0';
+      cursor.element.style.visibility = 'hidden';
+    }
+  }
+
+  private handleScreenInfo(screenInfo: any): void {
+    console.log('📺 Informations écran reçues:', screenInfo);
+
+    document.documentElement.setAttribute('data-display-id', screenInfo.displayId.toString());
+    document.documentElement.setAttribute('data-display-index', screenInfo.displayIndex.toString());
+    document.documentElement.setAttribute('data-is-primary', screenInfo.isPrimary.toString());
+
+    if (screenInfo.bounds) {
+      document.documentElement.style.setProperty('--screen-width', `${screenInfo.bounds.width}px`);
+      document.documentElement.style.setProperty('--screen-height', `${screenInfo.bounds.height}px`);
+      document.documentElement.style.setProperty('--screen-x', `${screenInfo.bounds.x}px`);
+      document.documentElement.style.setProperty('--screen-y', `${screenInfo.bounds.y}px`);
+    }
+  }
+
   private startHighPrecisionLoop(): void {
     if (!this.highPrecisionMode) return;
     const loop = (): void => {
@@ -520,8 +546,10 @@ class OrionixRenderer {
     if (!cursor) return;
 
     cursor.element.style.transform = `translate3d(${d.x}px, ${d.y}px, 0)`;
+
     Object.assign(cursor.element.style, {
       opacity: d.isVisible === false ? '0' : '1',
+      visibility: d.isVisible === false ? 'hidden' : 'visible',
       pointerEvents: d.isVisible === false ? 'none' : 'auto',
     });
 
