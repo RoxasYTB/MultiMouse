@@ -1,6 +1,6 @@
 ﻿{
     "hand":  "assets/custom/hand.cur",
-    "ibeam":  "assets/default/ibeam.cur",
+    "ibeam":  "assets/custom/ibeam.cur",
     "arrow":  "assets/custom/arrow.cur",
     "vertical":  "assets/custom/vertical.cur",
     "uparrow":  "assets/custom/uparrow.cur",
@@ -10,19 +10,19 @@
     "sizeall":  "assets/custom/sizeall.cur",
     "handwriting":  "assets/default/handwriting.cur",
     "move":  "assets/default/move.cur",
-    "text":  "assets/default/text.cur",
+    "text":  "assets/custom/text.cur",
     "unavailable":  "assets/custom/unavailable.cur",
     "horizontal":  "assets/custom/horizontal.cur",
     "link":  "assets/default/link.cur",
     "sizens":  "assets/custom/sizens.cur",
-    "wait":  "assets/custom/wait.gif",
+    "wait":  "assets/custom/wait.cur",
     "diagonal1":  "assets/custom/diagonal1.cur",
     "sizenwse":  "assets/custom/sizenwse.cur",
-    "busy":  "assets/custom/busy.gif",
+    "busy":  "assets/custom/busy.cur",
     "precision":  "assets/default/precision.cur",
     "sizewe":  "assets/custom/sizewe.cur",
     "diagonal2":  "assets/custom/diagonal2.cur",
     "cross":  "assets/default/cross.cur",
     "help":  "assets/custom/help.cur",
-    "appstarting":  "assets/custom/appstarting.gif"
+    "appstarting":  "assets/custom/appstarting.cur"
 }

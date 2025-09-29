@@ -92,6 +92,8 @@ debug_*.ts
 *_backup.*
 *.bak
 
-assets/custom/*.gif
+assets/custom/*
 cursorsToUse.json
 cursors.json
+cursors.json
+cursorsToUse.json
