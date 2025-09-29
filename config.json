@@ -12,7 +12,7 @@
   "highPerformanceMode": true,
   "precisePositioning": true,
   "allowTrayLeftClick": false,
-  "colorIdentification": false,
+  "colorIdentification": true,
   "cursorOpacity": 1,
   "cursorSpeed": 0.9,
   "acceleration": true,

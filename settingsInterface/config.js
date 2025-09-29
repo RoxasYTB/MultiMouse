@@ -54,7 +54,7 @@ config = {
     functional: {
       title: 'Functional Settings',
       settings: [
-        { id: 'speed', title: 'Cursor Speed', description: 'Override default sensitivity.', type: 'range', min: 0.1, max: 5, step: 0.1, value: 1 },
+        { id: 'speed', title: 'Cursor Speed', description: 'Override default sensitivity.', type: 'range', min: 0.1, max: 5, step: 0.1, value: 0.9 },
         { id: 'acceleration', title: 'Acceleration', description: 'Enable or disable mouse acceleration.', type: 'toggle', enabled: true },
         { id: 'color', title: 'Cursor Colors (Soon)', description: 'Assign unique colors per user.', type: 'toggle', enabled: true },
         { id: 'opacity', title: 'Opacity', description: 'Transparency level of the cursor.', type: 'range', min: 0.1, max: 1, step: 0.1, value: 1 },
@@ -65,25 +65,29 @@ config = {
 
   slides: [
     {
-      title: 'Nouveautés',
-      text: "Découvrez les dernières améliorations d'Orionix : meilleure détection et nouvelles icônes.",
-      cta: 'En savoir plus',
-      onClick: "console.log('Show release notes')",
+      title: "What's New",
+      text: 'Discover the latest improvements in Orionix: better detection and new icons.',
+      cta: 'Learn More',
+      onClick: { type: 'external-link', url: 'https://aperture-sciences.com/support' },
     },
     {
-      title: 'Astuce rapide',
-      text: 'Activez le mode « Identification » pour voir les labels utilisateurs au-dessus des curseurs.',
-      cta: 'Activer',
-      onClick: "config.sections.identification.settings.find(s=>s.id==='label').enabled = true; localStorage.setItem('orionix-cursor-settings', JSON.stringify(config)); window.location.reload();",
+      title: 'Quick Tip',
+      text: 'Enable "Identification" mode to see user labels above cursors.',
+      cta: 'Enable',
+      onClick: { type: 'external-link', url: 'https://aperture-sciences.com/support' },
     },
     {
-      title: 'Personnalisation',
-      text: "Chargez vos propres curseurs .cur/.ani dans l'onglet Identification.",
-      cta: 'Importer',
-      onClick: "console.log('Open import dialog')",
+      title: 'Customization',
+      text: 'Load your own .cur/.ani cursors in the Identification tab.',
+      cta: 'Import',
+      onClick: { type: 'eval', code: "console.log('Open import dialog')" },
     },
   ],
   slidesAutoplay: true,
   slidesAutoplayInterval: 6000,
+  resetButton: {
+    text: 'Reset Settings',
+    onClick: { type: 'reset-settings' },
+  },
 };
 

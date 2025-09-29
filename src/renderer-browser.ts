@@ -11,6 +11,7 @@ class OrionixRenderer {
   private pendingUpdates: Map<string, any> = new Map();
   private frameRequestId: any = null;
   private highPrecisionMode: boolean = true;
+  private systemCursorSize: number = 32;
 
   constructor() {
     const marker = document.createElement('div');
@@ -56,6 +57,7 @@ class OrionixRenderer {
         'cursor-type-changed': (d: any) => this.updateCursorType(d),
         'cursors-visibility-update': (d: any) => this.updateCursorsVisibility(d),
         'cursors-config-changed': () => this.reloadCursorMappings(),
+        'system-cursor-size': (size: number) => this.handleSystemCursorSize(size),
       };
 
       for (const [evt, fn] of Object.entries(handlers)) {
@@ -66,6 +68,8 @@ class OrionixRenderer {
 
       document.addEventListener('pointermove', (e: PointerEvent) => this.handlePointerMove(e));
       this.startHighPrecisionLoop();
+
+      ipcRenderer.send('get-system-cursor-size');
 
       ipcRenderer.send('renderer-ready');
     } catch (err) {
@@ -198,6 +202,33 @@ class OrionixRenderer {
     }
   }
 
+  private handleSystemCursorSize(size: number): void {
+    console.log('🖱️ Taille du curseur système reçue:', size);
+    this.systemCursorSize = size;
+
+    const scaleRatio = this.systemCursorSize / 32;
+    document.documentElement.style.setProperty('--cursor-scale', scaleRatio.toString());
+
+    console.log(`✅ Scaling des curseurs appliqué: ${scaleRatio}x (taille système: ${this.systemCursorSize})`);
+
+    this.cursors.forEach((cursor) => {
+      if (cursor.element) {
+        this.applyCursorSizeScaling(cursor.element);
+      }
+    });
+  }
+
+  private applyCursorSizeScaling(element: HTMLElement): void {
+    const scaleRatio = this.systemCursorSize / 32;
+
+    const currentTransform = element.style.transform;
+    const translateMatch = currentTransform.match(/translate3d\([^)]+\)/);
+    const translatePart = translateMatch ? translateMatch[0] : 'translate3d(0px, 0px, 0px)';
+
+    element.style.transform = `${translatePart} scale(${scaleRatio})`;
+    element.style.transformOrigin = 'center';
+  }
+
   private async reloadCursorMappings(): Promise<void> {
     console.log('Rechargement des mappings de curseurs...');
     this.cursorMappings.clear();
@@ -297,50 +328,54 @@ class OrionixRenderer {
     const cursorKey = cursorType.toLowerCase();
     const cursorPath = this.cursorMappings.get(cursorKey);
 
+    const sizeScale = this.systemCursorSize / 32;
+
     const isGif = cursorPath && cursorPath.endsWith('.gif');
 
     if (isGif) {
+      const baseSize = 32 * sizeScale;
       const gifOffsets: Record<string, [number, number, number, number]> = {
-        arrow: [0, 0, 32, 32],
-        hand: [0, 0, 32, 32],
-        ibeam: [0, 0, 32, 32],
-        sizens: [0, 0, 32, 32],
-        sizewe: [0, 0, 32, 32],
-        sizenwse: [0, 0, 32, 32],
-        sizenesw: [0, 0, 32, 32],
-        wait: [0, 0, 32, 32],
-        sizeall: [0, 0, 32, 32],
-        no: [0, 0, 32, 32],
-        help: [0, 0, 32, 32],
-        busy: [0, 0, 32, 32],
-        appstarting: [0, 0, 32, 32],
-        normal: [0, 0, 32, 32],
-        text: [0, 0, 32, 32],
-        vertical: [0, 0, 32, 32],
-        horizontal: [0, 0, 32, 32],
-        diagonal1: [0, 0, 32, 32],
-        diagonal2: [0, 0, 32, 32],
-        unavailable: [0, 0, 32, 32],
-        uparrow: [0, 0, 32, 32],
+        arrow: [0, 0, baseSize, baseSize],
+        hand: [0, 0, baseSize, baseSize],
+        ibeam: [0, 0, baseSize, baseSize],
+        sizens: [0, 0, baseSize, baseSize],
+        sizewe: [0, 0, baseSize, baseSize],
+        sizenwse: [0, 0, baseSize, baseSize],
+        sizenesw: [0, 0, baseSize, baseSize],
+        wait: [0, 0, baseSize, baseSize],
+        sizeall: [0, 0, baseSize, baseSize],
+        no: [0, 0, baseSize, baseSize],
+        help: [0, 0, baseSize, baseSize],
+        busy: [0, 0, baseSize, baseSize],
+        appstarting: [0, 0, baseSize, baseSize],
+        normal: [0, 0, baseSize, baseSize],
+        text: [0, 0, baseSize, baseSize],
+        vertical: [0, 0, baseSize, baseSize],
+        horizontal: [0, 0, baseSize, baseSize],
+        diagonal1: [0, 0, baseSize, baseSize],
+        diagonal2: [0, 0, baseSize, baseSize],
+        unavailable: [0, 0, baseSize, baseSize],
+        uparrow: [0, 0, baseSize, baseSize],
       };
-      return gifOffsets[cursorKey] || [0, 0, 32, 32];
+      return gifOffsets[cursorKey] || [0, 0, baseSize, baseSize];
     } else {
+      const baseSize = 26 * sizeScale;
       const curOffsets: Record<string, [number, number, number, number]> = {
-        arrow: [0, 0, 26, 26],
-        hand: [-4, -2, 26, 26],
-        ibeam: [-1.5, -6, 26, 26],
-        sizens: [-3, -9, 26, 26],
-        sizewe: [-8, -3, 26, 26],
-        sizenwse: [-6, -6, 26, 26],
-        sizenesw: [-6, -6, 26, 26],
-        wait: [-5, -8.5, 26, 26],
-        cross: [-10, -10, 35, 35],
-        sizeall: [-8, -8, 26, 26],
-        no: [-8, -8, 26, 26],
-        help: [-1, -1, 26, 26],
-        default: [0, 0, 26, 26],
+        arrow: [0, 0, baseSize, baseSize],
+        hand: [-4 * sizeScale, -2 * sizeScale, baseSize, baseSize],
+        ibeam: [-1.5 * sizeScale, -6 * sizeScale, baseSize, baseSize],
+        sizens: [-3 * sizeScale, -9 * sizeScale, baseSize, baseSize],
+        sizewe: [-8 * sizeScale, -3 * sizeScale, baseSize, baseSize],
+        sizenwse: [-6 * sizeScale, -6 * sizeScale, baseSize, baseSize],
+        sizenesw: [-6 * sizeScale, -6 * sizeScale, baseSize, baseSize],
+        wait: [-5 * sizeScale, -8.5 * sizeScale, baseSize, baseSize],
+        cross: [-10 * sizeScale, -10 * sizeScale, 35 * sizeScale, 35 * sizeScale],
+        sizeall: [-8 * sizeScale, -8 * sizeScale, baseSize, baseSize],
+        no: [-8 * sizeScale, -8 * sizeScale, baseSize, baseSize],
+        help: [-1 * sizeScale, -1 * sizeScale, baseSize, baseSize],
+        default: [0, 0, baseSize, baseSize],
       };
-      return curOffsets[cursorKey] || [0, 0, 26, 26];
+      return curOffsets[cursorKey] || [0, 0, baseSize, baseSize];
     }
   }
 
@@ -448,10 +483,13 @@ class OrionixRenderer {
 
     if (d.cursorType) {
       this.applyCursorStyle(el, d.cursorType);
+      this.applyCursorSizeScaling(el);
     } else {
+      const baseSize = 24;
+      const scaledSize = baseSize * (this.systemCursorSize / 32);
       Object.assign(el.style, {
-        width: '24px',
-        height: '24px',
+        width: `${scaledSize}px`,
+        height: `${scaledSize}px`,
         backgroundColor: d.color || '#F00',
         border: '2px solid #FFF',
         borderRadius: '50%',
@@ -622,5 +660,4 @@ window.addEventListener('error', (e: ErrorEvent) => {
 window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
   console.error('Unhandled promise rejection:', e.reason);
 });
-
 

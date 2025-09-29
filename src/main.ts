@@ -48,7 +48,7 @@ interface CursorState {
 }
 
 class OrionixAppElectron {
-  private overlayWindow: BrowserWindow | null = null;
+  private overlayWindows: Map<number, BrowserWindow> = new Map();
   private settingsWindow: BrowserWindow | null = null;
   private config: AppConfig = { ...DEFAULT_CONFIG };
   private configPath: string;
@@ -216,35 +216,33 @@ class OrionixAppElectron {
   }
 
   private updateOverlayInstantly(): void {
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      const activeCursors = Array.from(this.cursors.values())
-        .filter((c) => c.hasMovedOnce)
-        .map((c) => ({
-          deviceId: c.id,
-          deviceName: c.deviceName,
-          deviceHandle: c.deviceHandle,
-          x: c.x,
-          y: c.y,
-          color: c.color,
-          isRawInput: c.isRawInput,
-          cursorType: c.cursorType,
-          cursorCSS: c.cursorCSS,
-          cursorFile: c.cursorFile,
-          isVisible: true,
-        }));
+    const activeCursors = Array.from(this.cursors.values())
+      .filter((c) => c.hasMovedOnce)
+      .map((c) => ({
+        deviceId: c.id,
+        deviceName: c.deviceName,
+        deviceHandle: c.deviceHandle,
+        x: c.x,
+        y: c.y,
+        color: c.color,
+        isRawInput: c.isRawInput,
+        cursorType: c.cursorType,
+        cursorCSS: c.cursorCSS,
+        cursorFile: c.cursorFile,
+        isVisible: true,
+      }));
 
-      const now = Date.now();
-      if (activeCursors.length > 0 && now - this.lastLogTime > this.logThrottle) {
-        activeCursors.forEach((c) => {});
-        this.lastLogTime = now;
-      }
-
-      this.overlayWindow.webContents.send('cursors-instant-update', {
-        cursors: activeCursors,
-        lastActiveDevice: this.lastActiveDevice,
-        timestamp: performance.now(),
-      });
+    const now = Date.now();
+    if (activeCursors.length > 0 && now - this.lastLogTime > this.logThrottle) {
+      activeCursors.forEach((c) => {});
+      this.lastLogTime = now;
     }
+
+    this.sendToAllOverlays('cursors-instant-update', {
+      cursors: activeCursors,
+      lastActiveDevice: this.lastActiveDevice,
+      timestamp: performance.now(),
+    });
   }
 
   private setupFileWatcher(): void {
@@ -256,19 +254,21 @@ class OrionixAppElectron {
     });
 
     this.fileWatcher.on('change', (filePath: string) => {
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        if (filePath.endsWith('cursorsToUse.json')) {
-          console.log('cursorsToUse.json modifié - rechargement des mappings de curseurs...');
-          this.overlayWindow.webContents.send('cursors-config-changed');
+      if (filePath.endsWith('cursorsToUse.json')) {
+        console.log('cursorsToUse.json modifié - rechargement des mappings de curseurs...');
+        this.sendToAllOverlays('cursors-config-changed', {});
 
-          setTimeout(() => {
-            this.cursors.forEach((cursor, deviceId) => {
-              this.overlayWindow!.webContents.send('cursor-updated', deviceId, cursor);
-            });
-          }, 500);
-        }
-        this.overlayWindow.webContents.reload();
+        setTimeout(() => {
+          this.cursors.forEach((cursor, deviceId) => {
+            this.sendToAllOverlays('cursor-updated', cursor);
+          });
+        }, 500);
       }
+      this.overlayWindows.forEach((window) => {
+        if (window && !window.isDestroyed()) {
+          window.webContents.reload();
+        }
+      });
     });
   }
 
@@ -304,15 +304,13 @@ class OrionixAppElectron {
         cursor.cursorFile = this.cursorTypeDetector.getCursorFile(newType);
       }
 
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        this.overlayWindow.webContents.send('cursor-type-changed', {
-          type: newType,
-          cssClass: this.cursorTypeDetector.getCursorCSS(newType),
-          file: this.cursorTypeDetector.getCursorFile(newType),
-          filePath: this.cursorTypeDetector.getCursorFilePath(newType),
-          activeDeviceId: this.lastActiveDevice,
-        });
-      }
+      this.sendToAllOverlays('cursor-type-changed', {
+        type: newType,
+        cssClass: this.cursorTypeDetector.getCursorCSS(newType),
+        file: this.cursorTypeDetector.getCursorFile(newType),
+        filePath: this.cursorTypeDetector.getCursorFilePath(newType),
+        activeDeviceId: this.lastActiveDevice,
+      });
     });
   }
 
@@ -334,7 +332,7 @@ class OrionixAppElectron {
 
       this.calibrateCoordinateMapping();
       this.startMouseInput();
-      this.createOverlayWindow();
+      this.createOverlayWindows();
       this.createTray();
       this.setupIPC();
       this.setupGlobalShortcuts();
@@ -374,21 +372,16 @@ class OrionixAppElectron {
       this.centerX = this.screenWidth / 2;
       this.centerY = this.screenHeight / 2;
 
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        this.overlayWindow.close();
-        setTimeout(() => {
-          this.createOverlayWindow();
-        }, 100);
-      }
+      setTimeout(() => {
+        this.createOverlayWindows();
+      }, 100);
 
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        this.overlayWindow.webContents.send('screen-dimensions-changed', {
-          width: this.screenWidth,
-          height: this.screenHeight,
-          centerX: this.centerX,
-          centerY: this.centerY,
-        });
-      }
+      this.sendToAllOverlays('screen-dimensions-changed', {
+        width: this.screenWidth,
+        height: this.screenHeight,
+        centerX: this.centerX,
+        centerY: this.centerY,
+      });
     }
   }
 
@@ -558,13 +551,17 @@ class OrionixAppElectron {
           return;
         }
 
-        if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-          if (this.overlayWindow.isVisible()) {
-            this.overlayWindow.hide();
-          } else {
-            this.overlayWindow.show();
+        const anyVisible = Array.from(this.overlayWindows.values()).some((window) => window && !window.isDestroyed() && window.isVisible());
+
+        this.overlayWindows.forEach((window) => {
+          if (window && !window.isDestroyed()) {
+            if (anyVisible) {
+              window.hide();
+            } else {
+              window.show();
+            }
           }
-        }
+        });
       });
 
       this.tray.on('double-click', () => {
@@ -671,6 +668,87 @@ class OrionixAppElectron {
         this.settingsWindow.close();
       }
     });
+
+    ipcMain.on('reset-all-settings', (event, defaultSettings) => {
+      try {
+        console.log('🔄 Réinitialisation de config.json aux valeurs par défaut...');
+
+        fs.writeFileSync(this.configPath, JSON.stringify(defaultSettings, null, 2));
+
+        this.config = { ...defaultSettings };
+
+        this.applySettingsChanges(defaultSettings);
+
+        console.log('✅ Config.json réinitialisé avec succès');
+        event.reply('settings-reset-complete', defaultSettings);
+
+        this.sendToAllOverlays('settings-updated', this.config);
+      } catch (error) {
+        console.error('❌ Erreur lors de la réinitialisation de config.json:', error);
+        event.reply('settings-reset-error', error instanceof Error ? error.message : 'Erreur inconnue');
+      }
+    });
+
+    ipcMain.on('open-external-powershell', (event, url) => {
+      try {
+        console.log(`🔗 Ouverture de ${url} via PowerShell...`);
+        const { spawn } = require('child_process');
+
+        const powershellProcess = spawn('powershell', ['-Command', `Start-Process "${url}"`], {
+          shell: true,
+          stdio: 'ignore',
+          detached: true,
+        });
+
+        powershellProcess.unref();
+        console.log(`✅ URL ouverte avec succès: ${url}`);
+      } catch (error) {
+        console.error('❌ Erreur ouverture URL via PowerShell:', error);
+
+        const { shell } = require('electron');
+        shell.openExternal(url);
+      }
+    });
+
+    ipcMain.on('get-system-cursor-size', async (event) => {
+      try {
+        console.log('🖱️ Récupération de la taille du curseur système...');
+        const { spawn } = require('child_process');
+
+        const powershellCommand = `Get-ItemProperty "HKCU:\\Control Panel\\Cursors" | Select-Object -ExpandProperty CursorBaseSize`;
+
+        const process = spawn('powershell', ['-Command', powershellCommand], {
+          shell: true,
+          stdio: 'pipe',
+        });
+
+        let output = '';
+        process.stdout.on('data', (data: Buffer) => {
+          output += data.toString();
+        });
+
+        process.on('close', () => {
+          const size = parseInt(output.trim());
+          const cursorSize = isNaN(size) ? 32 : size;
+
+          console.log(`✅ Taille du curseur système détectée: ${cursorSize}`);
+          event.reply('system-cursor-size', cursorSize);
+
+          if (cursorSize !== 32) {
+            const clampedSize = Math.max(12, Math.min(64, cursorSize));
+            this.updateConfig({ cursorSize: clampedSize });
+          }
+        });
+
+        process.on('error', (error: Error) => {
+          console.error('❌ Erreur lors de la récupération de la taille du curseur:', error);
+          event.reply('system-cursor-size', 32);
+        });
+      } catch (error) {
+        console.error('❌ Erreur générale lors de la récupération de la taille du curseur:', error);
+        event.reply('system-cursor-size', 32);
+      }
+    });
   }
 
   private updateConfig(newSettings: Partial<AppConfig>): void {
@@ -680,9 +758,7 @@ class OrionixAppElectron {
 
     this.applySettingsChanges(newSettings);
 
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      this.overlayWindow.webContents.send('settings-updated', this.config);
-    }
+    this.sendToAllOverlays('settings-updated', this.config);
   }
 
   private applySettingsChanges(newSettings: Partial<AppConfig>): void {
@@ -690,19 +766,19 @@ class OrionixAppElectron {
       this.config.sensitivity = newSettings.cursorSpeed;
     }
 
-    if (newSettings.cursorOpacity !== undefined && this.overlayWindow) {
+    if (newSettings.cursorOpacity !== undefined) {
       this.config.cursorOpacity = newSettings.cursorOpacity;
-      this.overlayWindow.webContents.send('update-cursor-opacity', newSettings.cursorOpacity);
+      this.sendToAllOverlays('update-cursor-opacity', newSettings.cursorOpacity);
     }
 
-    if (newSettings.overlayDebug !== undefined && this.overlayWindow) {
+    if (newSettings.overlayDebug !== undefined) {
       this.config.overlayDebug = newSettings.overlayDebug;
-      this.overlayWindow.webContents.send('toggle-debug-mode', newSettings.overlayDebug);
+      this.sendToAllOverlays('toggle-debug-mode', newSettings.overlayDebug);
     }
 
-    if (newSettings.colorIdentification !== undefined && this.overlayWindow) {
+    if (newSettings.colorIdentification !== undefined) {
       this.config.colorIdentification = newSettings.colorIdentification;
-      this.overlayWindow.webContents.send('update-color-identification', newSettings.colorIdentification);
+      this.sendToAllOverlays('update-color-identification', newSettings.colorIdentification);
     }
 
     if (newSettings.acceleration !== undefined) {
@@ -800,8 +876,8 @@ class OrionixAppElectron {
   }
 
   sendInstantCursorUpdate(cursor: CursorState): void {
-    if (cursor.hasMovedOnce && this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      this.overlayWindow.webContents.send('cursor-position-update', {
+    if (cursor.hasMovedOnce) {
+      this.sendToAllOverlays('cursor-position-update', {
         deviceId: cursor.id,
         x: cursor.x,
         y: cursor.y,
@@ -837,10 +913,8 @@ class OrionixAppElectron {
       this.cursors.delete(deviceId);
       this.manageSystemCursorVisibility();
 
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        console.log(`Envoi de l'événement cursor-removed au renderer...`);
-        this.overlayWindow.webContents.send('cursor-removed', deviceId);
-      }
+      console.log(`Envoi de l'événement cursor-removed au renderer...`);
+      this.sendToAllOverlays('cursor-removed', deviceId);
 
       if (this.lastActiveDevice === deviceId) {
         const remainingCursors = Array.from(this.cursors.keys());
@@ -857,74 +931,107 @@ class OrionixAppElectron {
   }
 
   private updateDeviceDisplay(): void {
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      this.overlayWindow.webContents.send('devices-updated', {
-        count: this.mouseDetector.getDeviceCount(),
-        devices: this.mouseDetector.getConnectedDevices(),
-      });
-    }
+    this.overlayWindows.forEach((window) => {
+      if (window && !window.isDestroyed()) {
+        window.webContents.send('devices-updated', {
+          count: this.mouseDetector.getDeviceCount(),
+          devices: this.mouseDetector.getConnectedDevices(),
+        });
+      }
+    });
   }
 
-  private createOverlayWindow(): void {
-    console.log('Creation de la fenetre overlay...');
-
-    this.overlayWindow = new BrowserWindow({
-      fullscreen: true,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      show: false,
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-        webSecurity: false,
-        devTools: true,
-      },
-    });
-
-    this.overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
-
-    this.overlayWindow.loadFile(path.join(__dirname, '..', 'overlay.html'));
-
-    this.overlayWindow.once('ready-to-show', () => {
-      console.log('Fenetre overlay prete, affichage...');
-      this.overlayWindow!.show();
-      this.overlayWindow!.setIgnoreMouseEvents(true);
-
-      console.log('Overlay window visible:', !this.overlayWindow!.isDestroyed());
-      console.log('Devices connectes:', this.mouseDetector.getDeviceCount());
-
-      let needDevTools = false;
-      if (needDevTools) {
-        this.overlayWindow!.webContents.openDevTools({ mode: 'detach' });
+  private sendToAllOverlays(channel: string, data: any): void {
+    this.overlayWindows.forEach((window) => {
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(channel, data);
       }
-
-      setTimeout(() => {
-        this.sendExistingCursorsToRenderer();
-      }, 1000);
     });
+  }
 
-    this.overlayWindow.on('closed', () => {
-      console.log('Fenêtre overlay fermée');
-      this.overlayWindow = null;
+  private createOverlayWindows(): void {
+    console.log('Creation des fenetres overlay pour tous les ecrans...');
+
+    this.closeAllOverlays();
+
+    const displays = screen.getAllDisplays();
+    console.log(`Nombre d'ecrans detectes: ${displays.length}`);
+
+    displays.forEach((display, index) => {
+      console.log(`Creation overlay pour ecran ${index + 1}:`, {
+        id: display.id,
+        bounds: display.bounds,
+        size: display.size,
+      });
+
+      const overlayWindow = new BrowserWindow({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        resizable: false,
+        show: false,
+        webPreferences: {
+          nodeIntegration: true,
+          contextIsolation: false,
+          webSecurity: false,
+          devTools: true,
+        },
+      });
+
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
+      overlayWindow.loadFile(path.join(__dirname, '..', 'overlay.html'));
+
+      overlayWindow.once('ready-to-show', () => {
+        console.log(`Fenetre overlay ${index + 1} prete, affichage...`);
+        overlayWindow.show();
+        overlayWindow.setIgnoreMouseEvents(true);
+
+        overlayWindow.webContents.send('screen-info', {
+          displayId: display.id,
+          bounds: display.bounds,
+          size: display.size,
+          isPrimary: display.id === screen.getPrimaryDisplay().id,
+        });
+
+        if (index === 0) {
+          setTimeout(() => {
+            this.sendExistingCursorsToRenderer();
+          }, 1000);
+        }
+      });
+
+      overlayWindow.on('closed', () => {
+        console.log(`Fenêtre overlay ${index + 1} fermée`);
+        this.overlayWindows.delete(display.id);
+      });
+
+      overlayWindow.on('close', (e) => {
+        if (index === 0) {
+          console.log("Fermeture de l'application demandée");
+          this.shutdown();
+        }
+      });
+
+      this.overlayWindows.set(display.id, overlayWindow);
     });
+  }
 
-    this.overlayWindow.on('close', (e) => {
-      console.log("Fermeture de l'application demandée");
-      this.shutdown();
+  private closeAllOverlays(): void {
+    this.overlayWindows.forEach((window) => {
+      if (window && !window.isDestroyed()) {
+        window.close();
+      }
     });
-
-    if (process.platform === 'win32') {
-      this.overlayWindow.setSkipTaskbar(true);
-    }
+    this.overlayWindows.clear();
   }
 
   private sendExistingCursorsToRenderer(): void {
-    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) return;
-
-    console.log('=== ENVOI CURSEURS EXISTANTS AU RENDERER ===');
+    console.log('=== ENVOI CURSEURS EXISTANTS A TOUS LES RENDERERS ===');
     const existingCursors = Array.from(this.cursors.values()).map((cursor) => ({
       deviceId: cursor.id,
       x: cursor.x,
@@ -939,7 +1046,7 @@ class OrionixAppElectron {
     console.log('Curseurs à envoyer:', existingCursors);
 
     if (existingCursors.length > 0) {
-      this.overlayWindow.webContents.send('cursors-instant-update', {
+      this.sendToAllOverlays('cursors-instant-update', {
         cursors: existingCursors,
         lastActiveDevice: this.lastActiveDevice,
         timestamp: performance.now(),
@@ -1017,6 +1124,25 @@ class OrionixAppElectron {
       this.simulateDeviceDisconnect(deviceId);
       return { success: true, message: `Déconnexion simulée pour ${deviceId}` };
     });
+
+    ipcMain.handle('reset-config', () => {
+      console.log('[IPC] Reset de configuration demandé');
+      return this.resetConfig();
+    });
+
+    ipcMain.handle('reset-to-defaults', () => {
+      console.log('[IPC] Reset aux valeurs par défaut demandé');
+      return this.resetToDefaults();
+    });
+
+    ipcMain.handle('get-system-cursor-size', async () => {
+      return await this.getSystemCursorSize();
+    });
+
+    ipcMain.on('get-system-cursor-size', async (event) => {
+      const size = await this.getSystemCursorSize();
+      event.reply('system-cursor-size', size);
+    });
   }
 
   private increaseSensitivity(): void {
@@ -1035,8 +1161,55 @@ class OrionixAppElectron {
   }
 
   private sendConfigUpdate(): void {
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      this.overlayWindow.webContents.send('config-updated', this.config);
+    this.sendToAllOverlays('config-updated', this.config);
+  }
+
+  private resetConfig(): { success: boolean; message: string } {
+    try {
+      this.config = { ...DEFAULT_CONFIG };
+
+      this.saveConfig();
+
+      this.sendToAllOverlays('config-updated', this.config);
+
+      console.log('Configuration réinitialisée aux valeurs par défaut');
+      return { success: true, message: 'Configuration réinitialisée avec succès' };
+    } catch (error) {
+      console.error('Erreur lors de la réinitialisation:', error);
+      return { success: false, message: 'Erreur lors de la réinitialisation' };
+    }
+  }
+
+  private resetToDefaults(): { success: boolean; message: string; config: AppConfig } {
+    const result = this.resetConfig();
+    return {
+      ...result,
+      config: this.config,
+    };
+  }
+
+  private async getSystemCursorSize(): Promise<number> {
+    try {
+      if (process.platform === 'win32') {
+        const { exec } = require('child_process');
+
+        return new Promise<number>((resolve) => {
+          exec('powershell -Command "try { $reg = Get-ItemProperty -Path \\"HKCU:\\\\Control Panel\\\\Cursors\\" -Name \\"CursorBaseSize\\" -ErrorAction SilentlyContinue; if ($reg) { $reg.CursorBaseSize } else { 32 } } catch { 32 }"', (error: any, stdout: any) => {
+            if (error) {
+              console.warn('Impossible de détecter la taille système, utilisation par défaut:', error);
+              resolve(32);
+            } else {
+              const detectedSize = parseInt(stdout.toString().trim()) || 32;
+              console.log('Taille de curseur système détectée:', detectedSize);
+              resolve(Math.max(16, Math.min(128, detectedSize)));
+            }
+          });
+        });
+      }
+      return 32;
+    } catch (error) {
+      console.error('Erreur lors de la détection de la taille système:', error);
+      return 32;
     }
   }
 
@@ -1145,6 +1318,8 @@ class OrionixAppElectron {
       this.settingsWindow.close();
       this.settingsWindow = null;
     }
+
+    this.closeAllOverlays();
 
     if (this.mouseDetector) {
       this.mouseDetector.stop();

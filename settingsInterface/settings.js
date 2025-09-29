@@ -5,14 +5,40 @@ class SettingsManager {
     this.config = window.config || {};
     this.currentTab = this.config.tabs?.[0]?.id || 'identification';
     this.currentSettings = {};
+    this.systemCursorSize = 32;
     this.init();
   }
 
   init() {
     this.setupElectronIPC();
+    this.getSystemCursorSize();
     this.loadSavedSettings();
     this.render();
     this.attachEventListeners();
+  }
+
+  getSystemCursorSize() {
+    if (ipcRenderer) {
+      ipcRenderer.send('get-system-cursor-size');
+      ipcRenderer.on('system-cursor-size', (event, size) => {
+        this.systemCursorSize = size;
+        console.log('System cursor size received:', size);
+
+        this.applyCursorSizeScaling();
+
+        const cursorSizeSettings = {
+          cursorSize: Math.max(12, Math.min(64, size)),
+        };
+        this.sendSettingsToMain(cursorSizeSettings);
+      });
+    }
+  }
+
+  applyCursorSizeScaling() {
+    const scaleRatio = this.systemCursorSize / 32;
+    document.documentElement.style.setProperty('--cursor-scale', scaleRatio.toString());
+
+    console.log(`Applied cursor scaling: ${scaleRatio}x (based on system size: ${this.systemCursorSize})`);
   }
 
   setupElectronIPC() {
@@ -94,7 +120,29 @@ class SettingsManager {
 
     this.renderContent();
     this.renderSlides();
+    this.renderResetButton();
     this.initRangeVisuals();
+  }
+
+  renderResetButton() {
+    if (this.config.resetButton) {
+      const bottomSection = document.querySelector('.bottom-section');
+      if (bottomSection) {
+        const existingButton = bottomSection.querySelector('#reset-settings-btn');
+        if (existingButton) {
+          existingButton.remove();
+        }
+
+        bottomSection.innerHTML = `<button id="reset-settings-btn" class="reset-btn">${this.config.resetButton.text}</button>` + bottomSection.innerHTML;
+
+        const resetBtn = document.getElementById('reset-settings-btn');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            this.resetSettings();
+          });
+        }
+      }
+    }
   }
 
   renderSlides() {
@@ -156,10 +204,26 @@ class SettingsManager {
         const idx = Number(btn.dataset.ctaIndex);
         const slide = slidesConfig[idx];
         if (slide && slide.onClick) {
-          try {
-            new Function('config', slide.onClick)(this.config);
-          } catch (err) {
-            console.error(err);
+          if (typeof slide.onClick === 'object') {
+            if (slide.onClick.type === 'external-link') {
+              if (ipcRenderer) {
+                ipcRenderer.send('open-external-powershell', slide.onClick.url);
+              }
+            } else if (slide.onClick.type === 'eval') {
+              try {
+                new Function('config', slide.onClick.code)(this.config);
+              } catch (err) {
+                console.error(err);
+              }
+            } else if (slide.onClick.type === 'reset-settings') {
+              this.resetSettings();
+            }
+          } else {
+            try {
+              new Function('config', slide.onClick)(this.config);
+            } catch (err) {
+              console.error(err);
+            }
           }
         }
       });
@@ -415,7 +479,9 @@ class SettingsManager {
           return;
         case 'people':
         case 'help':
-          window.open('https://aperture-sciences/support', '_blank');
+          if (ipcRenderer) {
+            ipcRenderer.send('open-external-powershell', 'https://aperture-sciences.com/support');
+          }
           return;
         case 'settings':
           break;
@@ -537,6 +603,57 @@ class SettingsManager {
       sidebar?.classList.remove('mobile-open');
       overlay.classList.remove('active');
     });
+  }
+
+  resetSettings() {
+    console.log('Resetting settings...');
+
+    if (this.config.sections) {
+      Object.values(this.config.sections).forEach((section) => {
+        section.settings?.forEach((setting) => {
+          if (setting.type === 'range') {
+            let defaultValue = 1;
+            if (setting.id === 'opacity') defaultValue = 1;
+            if (setting.id === 'speed') defaultValue = 0.9;
+            setting.value = defaultValue;
+          } else if (setting.type === 'toggle') {
+            let defaultEnabled = true;
+            if (setting.id === 'overlayDebug') defaultEnabled = false;
+            setting.enabled = defaultEnabled;
+          }
+        });
+      });
+    }
+
+    const defaultSettings = {
+      sensitivity: 0.9,
+      refreshRate: 16,
+      maxCursors: 4,
+      cursorSize: 20,
+      cursorColors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
+      highPerformanceMode: true,
+      precisePositioning: true,
+      allowTrayLeftClick: false,
+      colorIdentification: true,
+      cursorOpacity: 1,
+      cursorSpeed: 0.9,
+      acceleration: true,
+      overlayDebug: false,
+    };
+
+    if (ipcRenderer) {
+      ipcRenderer.send('reset-all-settings', defaultSettings);
+    }
+
+    this.sendSettingsToMain(defaultSettings);
+    this.currentSettings = defaultSettings;
+
+    localStorage.removeItem('orionix-cursor-settings');
+
+    this.render();
+    this.updateUIWithCurrentSettings();
+
+    console.log('Settings have been reset to defaults');
   }
 }
 
