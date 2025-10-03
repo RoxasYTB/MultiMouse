@@ -95,6 +95,8 @@ export interface RawInputModuleInterface {
   getDevices(): any[];
   setSystemCursorPos?(x: number, y: number): void;
   getSystemCursorPos?(): { x: number; y: number };
+  setWindowTopMost?(hwnd: Buffer): boolean;
+  keepWindowTopMost?(hwnd: Buffer): boolean;
 }
 
 declare global {

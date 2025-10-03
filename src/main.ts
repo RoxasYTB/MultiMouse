@@ -94,6 +94,7 @@ class OrionixAppElectron {
   private periodicExportTimer: NodeJS.Timeout | null = null;
   private settingsIPCInitialized: boolean = false;
   private addonModule: any = null;
+  private rawInputAddon: any = null;
   private updateDeviceDisplayTimer: NodeJS.Timeout | null = null;
   private displayScaleFactor: number = 1.5;
 
@@ -122,6 +123,13 @@ class OrionixAppElectron {
     } catch (error) {
       console.error('Erreur lors du masquage du curseur système:', error);
       this.cursorHidden = false;
+    }
+
+    try {
+      this.rawInputAddon = require(path.join(__dirname, '..', 'build', 'Release', 'Orionix_raw_input.node'));
+      console.log('✅ Module Raw Input chargé avec succès pour les fonctions TOPMOST');
+    } catch (error) {
+      console.warn('⚠️ Impossible de charger le module Raw Input:', error);
     }
 
     this.setupMouseEvents();
@@ -634,6 +642,7 @@ class OrionixAppElectron {
       maxHeight: 1000,
       frame: true,
       transparent: false,
+      alwaysOnTop: true,
       resizable: true,
       show: false,
       webPreferences: {
@@ -1007,6 +1016,7 @@ class OrionixAppElectron {
         frame: false,
         transparent: true,
         alwaysOnTop: true,
+        fullscreen: true,
         skipTaskbar: true,
         resizable: false,
         show: false,
@@ -1018,13 +1028,38 @@ class OrionixAppElectron {
         },
       });
 
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
-      if (process.platform === 'win32') {
-        overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        overlayWindow.setAlwaysOnTop(true, 'pop-up-menu');
-      }
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
 
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
+      if (process.platform === 'win32') {
+        overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+        overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+        const hwnd = overlayWindow.getNativeWindowHandle();
+        if (hwnd && this.rawInputAddon) {
+          try {
+            if (this.rawInputAddon.setWindowTopMost) {
+              const success = this.rawInputAddon.setWindowTopMost(hwnd);
+              if (success) {
+                console.log(`✅ Fenêtre overlay ${index + 1} configurée comme TOPMOST (au-dessus de la barre des tâches)`);
+
+                setInterval(() => {
+                  if (this.rawInputAddon && this.rawInputAddon.keepWindowTopMost && hwnd) {
+                    this.rawInputAddon.keepWindowTopMost(hwnd);
+                  }
+                }, 500);
+              } else {
+                console.log(`⚠️ Impossible de définir la fenêtre ${index + 1} comme TOPMOST`);
+              }
+            } else {
+              console.log(`⚠️ Fonction setWindowTopMost non disponible dans le module`);
+            }
+          } catch (err) {
+            console.log(`❌ Erreur lors de la configuration TOPMOST pour l'écran ${index + 1}:`, err);
+          }
+        }
+      } else {
+        overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+      }
 
       const overlayUrl = `file://${path.join(__dirname, '..', 'overlay.html')}?displayIndex=${index}&displayId=${display.id}&offsetX=${display.bounds.x}&offsetY=${display.bounds.y}&scaleFactor=${display.scaleFactor}`;
       overlayWindow.loadURL(overlayUrl);

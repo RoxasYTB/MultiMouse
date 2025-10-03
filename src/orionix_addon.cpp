@@ -695,6 +695,70 @@ NAN_METHOD(SetupShutdownHandler) {
     info.GetReturnValue().Set(Nan::New<v8::Boolean>(result));
 }
 
+NAN_METHOD(SetWindowTopMost) {
+    if (info.Length() < 1) {
+        Nan::ThrowError("Expected window handle as argument");
+        return;
+    }
+
+    v8::Local<v8::Object> bufferObj = info[0].As<v8::Object>();
+    char* bufferData = node::Buffer::Data(bufferObj);
+    HWND hwnd = *reinterpret_cast<HWND*>(bufferData);
+
+    if (!hwnd || !IsWindow(hwnd)) {
+        info.GetReturnValue().Set(Nan::New<v8::Boolean>(false));
+        return;
+    }
+
+    BOOL result = SetWindowPos(
+        hwnd,
+        HWND_TOPMOST,
+        0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE
+    );
+
+    if (result) {
+
+        LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        exStyle |= WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+
+        SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_FRAMECHANGED
+        );
+    }
+
+    info.GetReturnValue().Set(Nan::New<v8::Boolean>(result));
+}
+
+NAN_METHOD(KeepWindowTopMost) {
+    if (info.Length() < 1) {
+        Nan::ThrowError("Expected window handle as argument");
+        return;
+    }
+
+    v8::Local<v8::Object> bufferObj = info[0].As<v8::Object>();
+    char* bufferData = node::Buffer::Data(bufferObj);
+    HWND hwnd = *reinterpret_cast<HWND*>(bufferData);
+
+    if (!hwnd || !IsWindow(hwnd)) {
+        info.GetReturnValue().Set(Nan::New<v8::Boolean>(false));
+        return;
+    }
+
+    BOOL result = SetWindowPos(
+        hwnd,
+        HWND_TOPMOST,
+        0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+    );
+
+    info.GetReturnValue().Set(Nan::New<v8::Boolean>(result));
+}
+
 NAN_MODULE_INIT(Init) {
     Nan::Set(target, Nan::New("setCallbacks").ToLocalChecked(),
         Nan::GetFunction(Nan::New<v8::FunctionTemplate>(SetCallbacks)).ToLocalChecked());
@@ -737,6 +801,12 @@ NAN_MODULE_INIT(Init) {
 
     Nan::Set(target, Nan::New("setupShutdownHandler").ToLocalChecked(),
         Nan::GetFunction(Nan::New<v8::FunctionTemplate>(SetupShutdownHandler)).ToLocalChecked());
+
+    Nan::Set(target, Nan::New("setWindowTopMost").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(SetWindowTopMost)).ToLocalChecked());
+
+    Nan::Set(target, Nan::New("keepWindowTopMost").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(KeepWindowTopMost)).ToLocalChecked());
 }
 
 NODE_MODULE(Orionix_raw_input, Init)
