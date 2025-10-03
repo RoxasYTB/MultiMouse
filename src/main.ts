@@ -154,7 +154,7 @@ class OrionixAppElectron {
             return;
           }
 
-          const hideResult = true;
+          const hideResult = this.addonModule.hideSystemCursor();
           this.cursorHidden = hideResult || false;
           console.log('Curseur système masqué:', hideResult);
         } catch (error) {
