@@ -13,7 +13,16 @@ class OrionixRenderer {
   private highPrecisionMode: boolean = true;
   private systemCursorSize: number = 32;
 
+  private screenOffsetX: number = 0;
+  private screenOffsetY: number = 0;
+  private screenWidth: number = 0;
+  private screenHeight: number = 0;
+  private displayIndex: number = 0;
+  private screenInfoReceived: boolean = false;
+
   constructor() {
+    this.readURLParameters();
+
     const marker = document.createElement('div');
     marker.id = 'renderer-ready';
     marker.style.display = 'none';
@@ -28,6 +37,34 @@ class OrionixRenderer {
     if (statusEl) statusEl.textContent = 'Renderer: Chargé!';
 
     this.init();
+  }
+
+  private readURLParameters(): void {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+
+      if (urlParams.has('displayIndex')) {
+        this.displayIndex = parseInt(urlParams.get('displayIndex')!) || 0;
+        this.screenInfoReceived = true;
+        console.log(`🔒 DisplayIndex initialisé depuis URL: ${this.displayIndex + 1}`);
+      }
+
+      if (urlParams.has('offsetX')) {
+        this.screenOffsetX = parseFloat(urlParams.get('offsetX')!) || 0;
+        console.log(`🔒 OffsetX initialisé depuis URL: ${this.screenOffsetX}`);
+      }
+
+      if (urlParams.has('offsetY')) {
+        this.screenOffsetY = parseFloat(urlParams.get('offsetY')!) || 0;
+        console.log(`🔒 OffsetY initialisé depuis URL: ${this.screenOffsetY}`);
+      }
+
+      if (this.screenInfoReceived) {
+        setTimeout(() => this.updateDebugDisplay(), 100);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la lecture des paramètres URL:', err);
+    }
   }
 
   private async init(): Promise<void> {
@@ -308,15 +345,57 @@ class OrionixRenderer {
   private handleScreenInfo(screenInfo: any): void {
     console.log('📺 Informations écran reçues:', screenInfo);
 
+    this.screenOffsetX = screenInfo.offsetX || 0;
+    this.screenOffsetY = screenInfo.offsetY || 0;
+    this.screenWidth = screenInfo.bounds?.width || window.innerWidth;
+    this.screenHeight = screenInfo.bounds?.height || window.innerHeight;
+
+    if (!this.screenInfoReceived) {
+      this.displayIndex = screenInfo.displayIndex || 0;
+      this.screenInfoReceived = true;
+      console.log(`🔒 DisplayIndex verrouillé à: ${this.displayIndex + 1}`);
+    } else {
+      console.log(`⚠️ Tentative de changement displayIndex ignorée (déjà configuré à ${this.displayIndex + 1})`);
+    }
+
+    const scaleFactor = screenInfo.scaleFactor || 1.0;
+    const physicalWidth = Math.round(this.screenWidth * scaleFactor);
+    const physicalHeight = Math.round(this.screenHeight * scaleFactor);
+
+    console.log(`🎯 Configuration écran:`);
+    console.log(`   - Numéro: ${this.displayIndex + 1}`);
+    console.log(`   - Offset: X=${this.screenOffsetX}, Y=${this.screenOffsetY}`);
+    console.log(`   - Taille logique: ${this.screenWidth}x${this.screenHeight}`);
+    console.log(`   - Taille physique: ${physicalWidth}x${physicalHeight}`);
+    console.log(`   - Scale factor: ${scaleFactor} (${scaleFactor * 100}%)`);
+
     document.documentElement.setAttribute('data-display-id', screenInfo.displayId.toString());
-    document.documentElement.setAttribute('data-display-index', screenInfo.displayIndex.toString());
+    document.documentElement.setAttribute('data-display-index', this.displayIndex.toString());
     document.documentElement.setAttribute('data-is-primary', screenInfo.isPrimary.toString());
+    document.documentElement.setAttribute('data-scale-factor', scaleFactor.toString());
+
+    this.updateDebugDisplay();
 
     if (screenInfo.bounds) {
       document.documentElement.style.setProperty('--screen-width', `${screenInfo.bounds.width}px`);
       document.documentElement.style.setProperty('--screen-height', `${screenInfo.bounds.height}px`);
       document.documentElement.style.setProperty('--screen-x', `${screenInfo.bounds.x}px`);
       document.documentElement.style.setProperty('--screen-y', `${screenInfo.bounds.y}px`);
+      document.documentElement.style.setProperty('--screen-offset-x', `${this.screenOffsetX}px`);
+      document.documentElement.style.setProperty('--screen-offset-y', `${this.screenOffsetY}px`);
+      document.documentElement.style.setProperty('--scale-factor', scaleFactor.toString());
+    }
+  }
+
+  private updateDebugDisplay(): void {
+    const displayIdEl = document.getElementById('display-id');
+    if (displayIdEl) {
+      displayIdEl.textContent = `${this.displayIndex + 1}`;
+    }
+
+    const offsetsEl = document.getElementById('offsets');
+    if (offsetsEl) {
+      offsetsEl.textContent = `${this.screenOffsetX}, ${this.screenOffsetY}`;
     }
   }
 
@@ -415,8 +494,11 @@ class OrionixRenderer {
     if (!last || last.x !== d.x || last.y !== d.y) {
       const [ox, oy, w, h] = this.getCursorOffsets(d.cursorType || 'default');
 
+      const adjustedX = d.x - this.screenOffsetX + ox;
+      const adjustedY = d.y - this.screenOffsetY + oy;
+
       Object.assign(cursor.element.style, {
-        transform: `translate3d(${d.x + ox}px, ${d.y + oy}px, 0)`,
+        transform: `translate3d(${adjustedX}px, ${adjustedY}px, 0)`,
         width: `${w}px`,
         height: `${h}px`,
         zoom: 1,
@@ -425,6 +507,17 @@ class OrionixRenderer {
         display: 'block',
         opacity: '1',
       });
+
+      const posEl = document.getElementById('cursor-position');
+      if (posEl) {
+        posEl.textContent = `${Math.round(adjustedX)}, ${Math.round(adjustedY)}`;
+      }
+
+      const deviceEl = document.getElementById('current-device');
+      if (deviceEl) {
+        deviceEl.textContent = d.deviceId;
+      }
+
       this.lastPositions.set(d.deviceId, { x: d.x, y: d.y });
     }
 
@@ -526,7 +619,10 @@ class OrionixRenderer {
     cursorBody.className = 'cursor-body';
     el.appendChild(cursorBody);
 
-    el.style.transform = `translate3d(${d.x || 400}px, ${d.y || 300}px, 0)`;
+    const adjustedX = (d.x || 400) - this.screenOffsetX;
+    const adjustedY = (d.y || 300) - this.screenOffsetY;
+
+    el.style.transform = `translate3d(${adjustedX}px, ${adjustedY}px, 0)`;
     this.cursorsContainer.appendChild(el);
     const cursorInfo: any = {
       element: el,
@@ -545,7 +641,10 @@ class OrionixRenderer {
     const cursor = this.cursors.get(deviceId);
     if (!cursor) return;
 
-    cursor.element.style.transform = `translate3d(${d.x}px, ${d.y}px, 0)`;
+    const adjustedX = d.x - this.screenOffsetX;
+    const adjustedY = d.y - this.screenOffsetY;
+
+    cursor.element.style.transform = `translate3d(${adjustedX}px, ${adjustedY}px, 0)`;
 
     Object.assign(cursor.element.style, {
       opacity: d.isVisible === false ? '0' : '1',

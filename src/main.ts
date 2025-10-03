@@ -8,10 +8,6 @@ import { CursorTypeDetector } from './cursor_type_detector';
 import { RawInputMouseDetector } from './raw_input_detector';
 import { AppConfig, MouseDevice, MouseMoveData } from './types';
 
-if (process.platform === 'win32') {
-  exec('chcp 65001');
-}
-
 const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -99,6 +95,7 @@ class OrionixAppElectron {
   private settingsIPCInitialized: boolean = false;
   private addonModule: any = null;
   private updateDeviceDisplayTimer: NodeJS.Timeout | null = null;
+  private displayScaleFactor: number = 1.5;
 
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
@@ -157,7 +154,7 @@ class OrionixAppElectron {
             return;
           }
 
-          const hideResult = this.addonModule.hideSystemCursor();
+          const hideResult = true;
           this.cursorHidden = hideResult || false;
           console.log('Curseur système masqué:', hideResult);
         } catch (error) {
@@ -216,16 +213,13 @@ class OrionixAppElectron {
   private syncSystemCursorToHTML(cursor: CursorState): void {
     if (!this.systemCursorUpdatePending) {
       this.systemCursorUpdatePending = true;
-
       setImmediate(() => {
-        const systemCoords = this.convertHTMLToSystemCoordinates(cursor.x, cursor.y);
-        const targetX = Math.round(systemCoords.x);
-        const targetY = Math.round(systemCoords.y);
-
-        if (Math.abs(this.lastSystemCursorPos.x - targetX) > 0 || Math.abs(this.lastSystemCursorPos.y - targetY) > 0) {
+        const physicalX = Math.round(cursor.x * this.displayScaleFactor);
+        const physicalY = Math.round(cursor.y * this.displayScaleFactor);
+        if (Math.abs(this.lastSystemCursorPos.x - physicalX) > 0 || Math.abs(this.lastSystemCursorPos.y - physicalY) > 0) {
           if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
-            this.mouseDetector.rawInputModule.setSystemCursorPos(targetX, targetY);
-            this.lastSystemCursorPos = { x: targetX, y: targetY };
+            this.mouseDetector.rawInputModule.setSystemCursorPos(physicalX, physicalY);
+            this.lastSystemCursorPos = { x: physicalX, y: physicalY };
           }
         }
 
@@ -348,6 +342,11 @@ class OrionixAppElectron {
       this.centerX = this.screenWidth / 2;
       this.centerY = this.screenHeight / 2;
 
+      this.displayScaleFactor = primaryDisplay.scaleFactor;
+      console.log(`🖥️ Display Scale Factor détecté: ${this.displayScaleFactor} (${this.displayScaleFactor * 100}%)`);
+      console.log(`📐 Résolution logique: ${this.screenWidth}x${this.screenHeight}`);
+      console.log(`📐 Résolution physique: ${this.screenWidth * this.displayScaleFactor}x${this.screenHeight * this.displayScaleFactor}`);
+
       this.exportCursors().catch((error) => {
         console.warn("Impossible d'exporter les curseurs au démarrage:", error);
       });
@@ -387,12 +386,16 @@ class OrionixAppElectron {
     const primaryDisplay: Display = screen.getPrimaryDisplay();
     const newWidth = primaryDisplay.size.width;
     const newHeight = primaryDisplay.size.height;
+    const newScaleFactor = primaryDisplay.scaleFactor;
 
-    if (this.screenWidth !== newWidth || this.screenHeight !== newHeight) {
+    if (this.screenWidth !== newWidth || this.screenHeight !== newHeight || this.displayScaleFactor !== newScaleFactor) {
       this.screenWidth = newWidth;
       this.screenHeight = newHeight;
+      this.displayScaleFactor = newScaleFactor;
       this.centerX = this.screenWidth / 2;
       this.centerY = this.screenHeight / 2;
+
+      console.log(`🖥️ Dimensions d'écran mises à jour: ${newWidth}x${newHeight}, Scale: ${newScaleFactor}`);
 
       setTimeout(() => {
         this.createOverlayWindows();
@@ -403,6 +406,7 @@ class OrionixAppElectron {
         height: this.screenHeight,
         centerX: this.centerX,
         centerY: this.centerY,
+        scaleFactor: this.displayScaleFactor,
       });
     }
   }
@@ -433,13 +437,6 @@ class OrionixAppElectron {
       this.correctionFactorX = 1.0;
       this.correctionFactorY = 1.0;
     }
-  }
-
-  private convertHTMLToSystemCoordinates(htmlX: number, htmlY: number): { x: number; y: number } {
-    return {
-      x: htmlX * 1.25,
-      y: htmlY * 1.25,
-    };
   }
 
   private analyzeCoordinateAccuracy(htmlPos: any, systemPos: any): void {
@@ -516,13 +513,6 @@ class OrionixAppElectron {
     }, 5 * 60 * 1000);
 
     console.log('Export périodique des curseurs démarré (toutes les 5 minutes)');
-  }
-
-  private convertSystemToHTMLCoordinates(systemX: number, systemY: number): { x: number; y: number } {
-    return {
-      x: systemX,
-      y: systemY,
-    };
   }
 
   private startMouseInput(): void {
@@ -866,11 +856,14 @@ class OrionixAppElectron {
       this.manageSystemCursorVisibility();
     }
 
-    const newX = cursor.x + dx * this.config.sensitivity;
-    const newY = cursor.y + dy * this.config.sensitivity;
+    const scaledDx = dx / this.displayScaleFactor;
+    const scaledDy = dy / this.displayScaleFactor;
 
-    cursor.x = Math.max(0, Math.min(this.screenWidth, newX));
-    cursor.y = Math.max(0, Math.min(this.screenHeight, newY));
+    const newX = cursor.x + scaledDx * this.config.sensitivity;
+    const newY = cursor.y + scaledDy * this.config.sensitivity;
+
+    cursor.x = newX;
+    cursor.y = newY;
     cursor.lastUpdate = performance.now();
 
     const movement = Math.abs(dx) + Math.abs(dy);
@@ -900,28 +893,16 @@ class OrionixAppElectron {
 
   sendInstantCursorUpdate(cursor: CursorState): void {
     if (cursor.hasMovedOnce) {
-      const targetDisplayId = this.getDisplayForPosition(cursor.x, cursor.y);
-
-      if (targetDisplayId && this.overlayWindows.size > 1) {
-        this.sendCursorToSpecificDisplay(cursor, targetDisplayId);
-
-        this.overlayWindows.forEach((window, displayId) => {
-          if (displayId !== targetDisplayId && window && !window.isDestroyed()) {
-            window.webContents.send('hide-cursor', cursor.id);
-          }
-        });
-      } else {
-        this.sendToAllOverlays('cursor-position-update', {
-          deviceId: cursor.id,
-          x: cursor.x,
-          y: cursor.y,
-          cursorType: cursor.cursorType,
-          cursorCSS: cursor.cursorCSS,
-          cursorFile: cursor.cursorFile,
-          timestamp: performance.now(),
-          isActive: cursor.id === this.lastActiveDevice,
-        });
-      }
+      this.sendToAllOverlays('cursor-position-update', {
+        deviceId: cursor.id,
+        x: cursor.x,
+        y: cursor.y,
+        cursorType: cursor.cursorType,
+        cursorCSS: cursor.cursorCSS,
+        cursorFile: cursor.cursorFile,
+        isActive: cursor.id === this.lastActiveDevice,
+        isVisible: true,
+      });
     }
   }
 
@@ -1044,7 +1025,10 @@ class OrionixAppElectron {
       }
 
       overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
-      overlayWindow.loadFile(path.join(__dirname, '..', 'overlay.html'));
+
+      const overlayUrl = `file://${path.join(__dirname, '..', 'overlay.html')}?displayIndex=${index}&displayId=${display.id}&offsetX=${display.bounds.x}&offsetY=${display.bounds.y}&scaleFactor=${display.scaleFactor}`;
+      overlayWindow.loadURL(overlayUrl);
+      console.log(`📺 Chargement overlay avec URL: ${overlayUrl}`);
 
       overlayWindow.once('ready-to-show', () => {
         console.log(`Fenetre overlay ${index + 1} prete, affichage...`);
@@ -1057,7 +1041,12 @@ class OrionixAppElectron {
           size: display.size,
           isPrimary: display.id === screen.getPrimaryDisplay().id,
           displayIndex: index,
+          offsetX: display.bounds.x,
+          offsetY: display.bounds.y,
+          scaleFactor: display.scaleFactor,
         });
+
+        console.log(`✅ Overlay ${index + 1} configuré - Offset: X=${display.bounds.x}, Y=${display.bounds.y}, Scale: ${display.scaleFactor}`);
 
         if (index === 0) {
           setTimeout(() => {

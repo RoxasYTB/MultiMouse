@@ -1,11 +1,14 @@
 #include <nan.h>
 #include <windows.h>
+#include <ShellScalingApi.h>
 #include <map>
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <queue>
 #include <mutex>
+
+#pragma comment(lib, "Shcore.lib")
 
 using namespace Nan;
 
@@ -262,6 +265,7 @@ NAN_METHOD(SetCallbacks) {
 }
 
 NAN_METHOD(StartRawInput) {
+
     WNDCLASSA wc = {};
     wc.lpfnWndProc = RawInputWndProc;
     wc.hInstance = GetModuleHandle(nullptr);
@@ -347,8 +351,16 @@ NAN_METHOD(SetSystemCursorPos) {
     int x = Nan::To<int32_t>(info[0]).FromJust();
     int y = Nan::To<int32_t>(info[1]).FromJust();
 
-    x = std::max(0, std::min(x, GetSystemMetrics(SM_CXSCREEN) - 1));
-    y = std::max(0, std::min(y, GetSystemMetrics(SM_CYSCREEN) - 1));
+    int virtualScreenLeft = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    int virtualScreenTop = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    int virtualScreenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    int virtualScreenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+    int virtualScreenRight = virtualScreenLeft + virtualScreenWidth - 1;
+    int virtualScreenBottom = virtualScreenTop + virtualScreenHeight - 1;
+
+    x = std::max(virtualScreenLeft, std::min(x, virtualScreenRight));
+    y = std::max(virtualScreenTop, std::min(y, virtualScreenBottom));
 
     bool success = SetCursorPos(x, y);
     info.GetReturnValue().Set(Nan::New<v8::Boolean>(success));
