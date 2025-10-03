@@ -11,7 +11,7 @@ import { AppConfig, MouseDevice, MouseMoveData } from './types';
 const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
 
 const DEFAULT_CONFIG: AppConfig = {
-  sensitivity: 1.5,
+  sensitivity: 1,
   refreshRate: 1,
   maxCursors: 4,
   cursorSize: 20,
