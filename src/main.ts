@@ -96,6 +96,9 @@ class OrionixAppElectron {
   private allowTrayLeftClick: boolean = false;
   private cursorHidden: boolean = false;
   private periodicExportTimer: NodeJS.Timeout | null = null;
+  private settingsIPCInitialized: boolean = false;
+  private addonModule: any = null;
+  private updateDeviceDisplayTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
@@ -108,16 +111,16 @@ class OrionixAppElectron {
 
     console.log('Initialisation du gestionnaire de curseur système...');
     try {
-      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
+      this.addonModule = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
 
       try {
-        const shutdownHandlerResult = addon.setupShutdownHandler();
+        const shutdownHandlerResult = this.addonModule.setupShutdownHandler();
         console.log('Gestionnaire de fermeture Windows activé:', shutdownHandlerResult);
       } catch (handlerError) {
         console.warn("Impossible d'activer le gestionnaire de fermeture Windows:", handlerError);
       }
 
-      const initialCursorState = addon.getCursorState();
+      const initialCursorState = this.addonModule.getCursorState();
       console.log('État initial du curseur:', initialCursorState.type);
     } catch (error) {
       console.error('Erreur lors du masquage du curseur système:', error);
@@ -133,7 +136,6 @@ class OrionixAppElectron {
     this.setupFileWatcher();
     this.initHighPerformanceLoop();
     this.startPeriodicCursorExport();
-    this.setupSettingsIPC();
   }
 
   private initHighPerformanceLoop(): void {
@@ -147,28 +149,42 @@ class OrionixAppElectron {
 
     if (hasActiveCursors && !this.cursorHidden) {
       console.log('Masquage du curseur système (curseurs actifs détectés)...');
-      try {
-        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
-        const hideResult = addon.hideSystemCursor();
-        this.cursorHidden = hideResult || false;
-        console.log('Curseur système masqué:', hideResult);
-      } catch (error) {
-        console.warn('Erreur lors du masquage du curseur système:', error);
-      }
+
+      setImmediate(() => {
+        try {
+          if (!this.addonModule) {
+            console.warn('Module addon non disponible');
+            return;
+          }
+
+          const hideResult = this.addonModule.hideSystemCursor();
+          this.cursorHidden = hideResult || false;
+          console.log('Curseur système masqué:', hideResult);
+        } catch (error) {
+          console.warn('Erreur lors du masquage du curseur système:', error);
+        }
+      });
     } else if (!hasActiveCursors && this.cursorHidden) {
       console.log('Restauration du curseur système (aucun curseur actif)...');
-      try {
-        const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
-        const showResult = addon.showSystemCursor();
-        if (showResult) {
-          this.cursorHidden = false;
-          console.log('Curseur système restauré:', showResult);
-        } else {
-          console.warn('Échec de la restauration du curseur système');
+
+      setImmediate(() => {
+        try {
+          if (!this.addonModule) {
+            console.warn('Module addon non disponible');
+            return;
+          }
+
+          const showResult = this.addonModule.showSystemCursor();
+          if (showResult) {
+            this.cursorHidden = false;
+            console.log('Curseur système restauré:', showResult);
+          } else {
+            console.warn('Échec de la restauration du curseur système');
+          }
+        } catch (error) {
+          console.warn('Erreur lors de la restauration du curseur système:', error);
         }
-      } catch (error) {
-        console.warn('Erreur lors de la restauration du curseur système:', error);
-      }
+      });
     }
   }
 
@@ -254,6 +270,11 @@ class OrionixAppElectron {
     this.fileWatcher = chokidar.watch(filesToWatch, {
       ignored: /(^|[\/\\])\../,
       persistent: true,
+      ignoreInitial: true,
+      awaitWriteFinish: {
+        stabilityThreshold: 300,
+        pollInterval: 100,
+      },
     });
 
     this.fileWatcher.on('change', (filePath: string) => {
@@ -327,11 +348,9 @@ class OrionixAppElectron {
       this.centerX = this.screenWidth / 2;
       this.centerY = this.screenHeight / 2;
 
-      try {
-        await this.exportCursors();
-      } catch (error) {
+      this.exportCursors().catch((error) => {
         console.warn("Impossible d'exporter les curseurs au démarrage:", error);
-      }
+      });
 
       this.calibrateCoordinateMapping();
       this.startMouseInput();
@@ -611,6 +630,11 @@ class OrionixAppElectron {
   private createSettingsWindow(): void {
     console.log('Création de la fenêtre de settings...');
 
+    if (!this.settingsIPCInitialized) {
+      this.setupSettingsIPC();
+      this.settingsIPCInitialized = true;
+    }
+
     this.settingsWindow = new BrowserWindow({
       width: 1200,
       height: 800,
@@ -649,10 +673,6 @@ class OrionixAppElectron {
     this.settingsWindow.on('closed', () => {
       console.log('Fenêtre de settings fermée');
       this.settingsWindow = null;
-    });
-
-    this.settingsWindow.webContents.on('did-finish-load', () => {
-      this.setupSettingsIPC();
     });
   }
 
@@ -946,14 +966,22 @@ class OrionixAppElectron {
   }
 
   private updateDeviceDisplay(): void {
-    this.overlayWindows.forEach((window) => {
-      if (window && !window.isDestroyed()) {
-        window.webContents.send('devices-updated', {
-          count: this.mouseDetector.getDeviceCount(),
-          devices: this.mouseDetector.getConnectedDevices(),
-        });
-      }
-    });
+    if (this.updateDeviceDisplayTimer) {
+      clearTimeout(this.updateDeviceDisplayTimer);
+    }
+
+    this.updateDeviceDisplayTimer = setTimeout(() => {
+      const deviceData = {
+        count: this.mouseDetector.getDeviceCount(),
+        devices: this.mouseDetector.getConnectedDevices(),
+      };
+
+      this.overlayWindows.forEach((window) => {
+        if (window && !window.isDestroyed()) {
+          window.webContents.send('devices-updated', deviceData);
+        }
+      });
+    }, 50);
   }
 
   private sendToAllOverlays(channel: string, data: any): void {
@@ -1008,6 +1036,12 @@ class OrionixAppElectron {
           devTools: true,
         },
       });
+
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
+      if (process.platform === 'win32') {
+        overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        overlayWindow.setAlwaysOnTop(true, 'pop-up-menu');
+      }
 
       overlayWindow.setAlwaysOnTop(true, 'screen-saver', 10);
       overlayWindow.loadFile(path.join(__dirname, '..', 'overlay.html'));
@@ -1359,14 +1393,15 @@ class OrionixAppElectron {
 
     console.log('Restauration du curseur système...');
     try {
-      const addon = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
-      if (this.cursorHidden) {
-        const showResult = addon.showSystemCursor();
+      if (this.addonModule && this.cursorHidden) {
+        const showResult = this.addonModule.showSystemCursor();
         console.log('Curseur système restauré:', showResult);
 
         if (!showResult) {
           console.log('Échec de la restauration automatique, tentative de restauration manuelle...');
         }
+      } else if (!this.addonModule) {
+        console.warn('Module addon non disponible pour la restauration');
       } else {
         console.log("Le curseur système n'était pas masqué");
       }

@@ -1,8 +1,8 @@
 {
-  "sensitivity": 1,
+  "sensitivity": 0.8,
   "refreshRate": 1,
   "maxCursors": 4,
-  "cursorSize": 20,
+  "cursorSize": 32,
   "cursorColors": [
     "#FF0000",
     "#00FF00",
@@ -14,7 +14,7 @@
   "allowTrayLeftClick": false,
   "colorIdentification": true,
   "cursorOpacity": 1,
-  "cursorSpeed": 1,
+  "cursorSpeed": 0.8,
   "acceleration": true,
   "overlayDebug": false
 }
