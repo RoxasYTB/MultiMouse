@@ -54,6 +54,7 @@ class OrionixAppElectron {
 
   private displays: Display[] = [];
   private displayBounds: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
+  private cachedTotalBounds: { minX: number; maxX: number; minY: number; maxY: number } | null = null;
 
   private screenWidth: number = 800;
   private screenHeight: number = 600;
@@ -222,8 +223,13 @@ class OrionixAppElectron {
     if (!this.systemCursorUpdatePending) {
       this.systemCursorUpdatePending = true;
       setImmediate(() => {
-        const physicalX = Math.round(cursor.x * this.displayScaleFactor);
-        const physicalY = Math.round(cursor.y * this.displayScaleFactor);
+        const clamped = this.applySmartBounds(cursor.x, cursor.y, cursor.x, cursor.y);
+        const clampedX = clamped.x;
+        const clampedY = clamped.y;
+
+        const physicalX = Math.round(clampedX * this.displayScaleFactor);
+        const physicalY = Math.round(clampedY * this.displayScaleFactor);
+
         if (Math.abs(this.lastSystemCursorPos.x - physicalX) > 0 || Math.abs(this.lastSystemCursorPos.y - physicalY) > 0) {
           if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
             this.mouseDetector.rawInputModule.setSystemCursorPos(physicalX, physicalY);
@@ -846,6 +852,7 @@ class OrionixAppElectron {
     let cursor = this.cursors.get(cursorId);
     if (!cursor) {
       const colorIndex = this.getStableColorIndex(cursorId);
+
       cursor = {
         id: cursorId,
         deviceName: deviceName,
@@ -868,8 +875,23 @@ class OrionixAppElectron {
     const scaledDx = dx / this.displayScaleFactor;
     const scaledDy = dy / this.displayScaleFactor;
 
-    const newX = cursor.x + scaledDx * this.config.sensitivity;
-    const newY = cursor.y + scaledDy * this.config.sensitivity;
+    let newX = cursor.x + scaledDx * this.config.sensitivity;
+    let newY = cursor.y + scaledDy * this.config.sensitivity;
+
+    const beforeClampX = newX;
+    const beforeClampY = newY;
+
+    const clamped = this.applySmartBounds(newX, newY, cursor.x, cursor.y);
+    newX = clamped.x;
+    newY = clamped.y;
+
+    if (beforeClampX !== newX || beforeClampY !== newY) {
+      const now = performance.now();
+      if (now - this.lastLogTime > this.logThrottle) {
+        console.log(`⚠️ Curseur ${cursorId} bloqué aux limites: X[${beforeClampX.toFixed(0)} → ${newX.toFixed(0)}], Y[${beforeClampY.toFixed(0)} → ${newY.toFixed(0)}]`);
+        this.lastLogTime = now;
+      }
+    }
 
     cursor.x = newX;
     cursor.y = newY;
@@ -989,10 +1011,21 @@ class OrionixAppElectron {
 
     this.displays = screen.getAllDisplays();
     this.displayBounds.clear();
+    this.cachedTotalBounds = null;
 
     console.log(`Nombre d'ecrans detectes: ${this.displays.length}`);
 
     this.analyzeDisplayConfiguration();
+
+    const totalBounds = this.calculateTotalScreenBounds();
+    console.log(`🎯 Bounds totaux calculés:`, {
+      minX: totalBounds.minX,
+      minY: totalBounds.minY,
+      maxX: totalBounds.maxX,
+      maxY: totalBounds.maxY,
+      width: totalBounds.maxX - totalBounds.minX,
+      height: totalBounds.maxY - totalBounds.minY,
+    });
 
     this.displays.forEach((display, index) => {
       console.log(`Creation overlay pour ecran ${index + 1}:`, {
@@ -1140,6 +1173,50 @@ class OrionixAppElectron {
     });
   }
 
+  private calculateTotalScreenBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
+    if (this.cachedTotalBounds) {
+      return this.cachedTotalBounds;
+    }
+
+    if (this.displays.length === 0) {
+      this.cachedTotalBounds = {
+        minX: 0,
+        maxX: this.screenWidth,
+        minY: 0,
+        maxY: this.screenHeight,
+      };
+      return this.cachedTotalBounds;
+    }
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    this.displays.forEach((display, index) => {
+      const bounds = display.bounds;
+      const right = bounds.x + bounds.width;
+      const bottom = bounds.y + bounds.height;
+
+      minX = Math.min(minX, bounds.x);
+      maxX = Math.max(maxX, right);
+
+      minY = Math.min(minY, bounds.y);
+      maxY = Math.max(maxY, bottom);
+
+      console.log(`   📐 Écran ${index + 1} bounds: X[${bounds.x} → ${right}], Y[${bounds.y} → ${bottom}]`);
+    });
+
+    console.log(`   ✅ Bounds totaux: X[${minX} → ${maxX}] (largeur: ${maxX - minX}px), Y[${minY} → ${maxY}] (hauteur: ${maxY - minY}px)`);
+
+    this.cachedTotalBounds = { minX, maxX, minY, maxY };
+    return this.cachedTotalBounds;
+  }
+
+  private getDisplayBoundsById(displayId: number): { x: number; y: number; width: number; height: number } | null {
+    return this.displayBounds.get(displayId) || null;
+  }
+
   private getDisplayForPosition(x: number, y: number): number | null {
     for (const [displayId, bounds] of this.displayBounds.entries()) {
       if (x >= bounds.x && x < bounds.x + bounds.width && y >= bounds.y && y < bounds.y + bounds.height) {
@@ -1147,6 +1224,58 @@ class OrionixAppElectron {
       }
     }
     return null;
+  }
+
+  private applySmartBounds(newX: number, newY: number, currentX: number, currentY: number): { x: number; y: number } {
+    const bounds = this.calculateTotalScreenBounds();
+
+    newX = Math.max(bounds.minX, Math.min(newX, bounds.maxX));
+    newY = Math.max(bounds.minY, Math.min(newY, bounds.maxY));
+
+    const currentDisplayId = this.getDisplayForPosition(newX, newY);
+    if (currentDisplayId === null) {
+      const fallbackDisplayId = this.getDisplayForPosition(currentX, currentY);
+      if (fallbackDisplayId !== null) {
+        const displayBounds = this.getDisplayBoundsById(fallbackDisplayId);
+        if (displayBounds) {
+          newY = Math.max(displayBounds.y, Math.min(newY, displayBounds.y + displayBounds.height));
+        }
+      }
+      return { x: newX, y: newY };
+    }
+
+    const displayBounds = this.getDisplayBoundsById(currentDisplayId);
+    if (!displayBounds) {
+      return { x: newX, y: newY };
+    }
+
+    const horizontalNeighbors: number[] = [];
+    const verticalNeighbors: number[] = [];
+
+    for (const [otherId, otherBounds] of this.displayBounds.entries()) {
+      if (otherId === currentDisplayId) continue;
+
+      const isHorizontalNeighbor = (Math.abs(otherBounds.x + otherBounds.width - displayBounds.x) < 10 || Math.abs(otherBounds.x - (displayBounds.x + displayBounds.width)) < 10) && !(otherBounds.y + otherBounds.height <= displayBounds.y || otherBounds.y >= displayBounds.y + displayBounds.height);
+
+      const isVerticalNeighbor = (Math.abs(otherBounds.y + otherBounds.height - displayBounds.y) < 10 || Math.abs(otherBounds.y - (displayBounds.y + displayBounds.height)) < 10) && !(otherBounds.x + otherBounds.width <= displayBounds.x || otherBounds.x >= displayBounds.x + displayBounds.width);
+
+      if (isHorizontalNeighbor) horizontalNeighbors.push(otherId);
+      if (isVerticalNeighbor) verticalNeighbors.push(otherId);
+    }
+
+    if (horizontalNeighbors.length > 0 && verticalNeighbors.length === 0) {
+      newY = Math.max(displayBounds.y, Math.min(newY, displayBounds.y + displayBounds.height));
+    } else if (verticalNeighbors.length > 0 && horizontalNeighbors.length === 0) {
+      newX = Math.max(displayBounds.x, Math.min(newX, displayBounds.x + displayBounds.width));
+    } else if (horizontalNeighbors.length > 0 && verticalNeighbors.length > 0) {
+      newX = Math.max(displayBounds.x, Math.min(newX, displayBounds.x + displayBounds.width));
+      newY = Math.max(displayBounds.y, Math.min(newY, displayBounds.y + displayBounds.height));
+    } else {
+      newX = Math.max(displayBounds.x, Math.min(newX, displayBounds.x + displayBounds.width));
+      newY = Math.max(displayBounds.y, Math.min(newY, displayBounds.y + displayBounds.height));
+    }
+
+    return { x: newX, y: newY };
   }
 
   private sendCursorToSpecificDisplay(cursor: CursorState, targetDisplayId: number): void {
