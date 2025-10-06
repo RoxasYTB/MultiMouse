@@ -14,7 +14,6 @@ export class Logger {
 
   public info(message: string): void {
     if (!IS_PRODUCTION) {
-      console.log(`ℹ️ ${message}`);
     }
   }
 
@@ -32,16 +31,13 @@ export class Logger {
 
   public success(message: string): void {
     if (!IS_PRODUCTION) {
-      console.log(`✅ ${message}`);
     }
   }
 
   public debug(message: string, data?: any): void {
     if (!IS_PRODUCTION) {
       if (data) {
-        console.log(`🔍 ${message}`, data);
       } else {
-        console.log(`🔍 ${message}`);
       }
     }
   }

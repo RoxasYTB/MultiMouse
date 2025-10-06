@@ -22,7 +22,6 @@ class SettingsManager {
       ipcRenderer.send('get-system-cursor-size');
       ipcRenderer.on('system-cursor-size', (event, size) => {
         this.systemCursorSize = size;
-        console.log('System cursor size received:', size);
 
         this.applyCursorSizeScaling();
 
@@ -37,19 +36,15 @@ class SettingsManager {
   applyCursorSizeScaling() {
     const scaleRatio = this.systemCursorSize / 32;
     document.documentElement.style.setProperty('--cursor-scale', scaleRatio.toString());
-
-    console.log(`Applied cursor scaling: ${scaleRatio}x (based on system size: ${this.systemCursorSize})`);
   }
 
   setupElectronIPC() {
     ipcRenderer.on('settings-config', (event, config) => {
-      console.log('Configuration reçue depuis main:', config);
       this.currentSettings = config;
       this.updateUIWithCurrentSettings();
     });
 
     ipcRenderer.on('current-config', (event, config) => {
-      console.log('Configuration actuelle reçue:', config);
       this.currentSettings = config;
       this.updateUIWithCurrentSettings();
     });
@@ -84,7 +79,6 @@ class SettingsManager {
   }
 
   sendSettingsToMain(settings) {
-    console.log('Envoi des paramètres à main:', settings);
     ipcRenderer.send('settings-changed', settings);
   }
 
@@ -454,7 +448,6 @@ class SettingsManager {
       [configKey]: adjustedValue,
     };
 
-    console.log(`Mise à jour du paramètre ${settingId} -> ${configKey}:`, adjustedValue);
     this.sendSettingsToMain(settings);
   }
 
@@ -513,7 +506,7 @@ class SettingsManager {
         } else if (typeof value === 'string') {
           setting.value = value;
         }
-        console.log(`Setting updated: ${settingId} = ${value}`);
+
         this.saveSettings();
       }
     });
@@ -606,8 +599,6 @@ class SettingsManager {
   }
 
   resetSettings() {
-    console.log('Resetting settings...');
-
     const defaultSettings = {
       sensitivity: 1.5,
       refreshRate: 1,
@@ -645,7 +636,6 @@ class SettingsManager {
     }
 
     if (ipcRenderer) {
-      console.log('🔄 Envoi des settings par défaut au main process...');
       ipcRenderer.send('reset-all-settings', defaultSettings);
     }
 
@@ -655,10 +645,7 @@ class SettingsManager {
 
     setTimeout(() => {
       this.updateUIWithCurrentSettings();
-      console.log('✅ Interface settings mise à jour avec les valeurs par défaut');
     }, 100);
-
-    console.log('Settings have been reset to defaults:', defaultSettings);
   }
 }
 

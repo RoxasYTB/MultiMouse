@@ -99,3 +99,6 @@ cursors.json
 cursorsToUse.json
 
 *.cur
+*.md
+
+test-*

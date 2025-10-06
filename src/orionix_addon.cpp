@@ -184,15 +184,49 @@ LRESULT CALLBACK RawInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                         eventQueue.push(event);
                     }
 
-                    if (raw->data.mouse.lLastX != 0 || raw->data.mouse.lLastY != 0) {
-                        auto& device = devices[hDevice];
+                    auto& device = devices[hDevice];
 
+                    USHORT buttonFlags = raw->data.mouse.usButtonFlags;
+
+                    if (buttonFlags != 0) {
+                        char debugMsg[256];
+                        sprintf_s(debugMsg, "[C++] ButtonFlags = 0x%04X, Device = %p\n", buttonFlags, hDevice);
+                        OutputDebugStringA(debugMsg);
+                    }
+
+                    auto pushButton = [&](const char* action) {
+                        MouseEvent event;
+                        event.hDevice = hDevice;
+                        event.deviceName = device.name;
+                        event.x = device.x;
+                        event.y = device.y;
+                        event.deltaX = 0;
+                        event.deltaY = 0;
+                        event.flags = buttonFlags;
+                        event.type = "button";
+                        event.action = action;
+
+                        std::lock_guard<std::mutex> lock(eventMutex);
+                        eventQueue.push(event);
+                    };
+
+                    if (buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)   pushButton("left-down");
+                    if (buttonFlags & RI_MOUSE_LEFT_BUTTON_UP)     pushButton("left-up");
+                    if (buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)  pushButton("right-down");
+                    if (buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP)    pushButton("right-up");
+                    if (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) pushButton("middle-down");
+                    if (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)   pushButton("middle-up");
+
+                    if (buttonFlags != 0) {
+                        OutputDebugStringA("[C++] Button flags detected!\n");
+                    }
+
+                    if (raw->data.mouse.lLastX != 0 || raw->data.mouse.lLastY != 0) {
                         POINT cursorPos;
                         if (GetCursorPos(&cursorPos)) {
                             device.x = cursorPos.x;
                             device.y = cursorPos.y;
                         } else {
-
                             device.x += raw->data.mouse.lLastX;
                             device.y += raw->data.mouse.lLastY;
 
@@ -306,7 +340,7 @@ NAN_METHOD(StartRawInput) {
     RAWINPUTDEVICE rid[1];
     rid[0].usUsagePage = 0x01;
     rid[0].usUsage = 0x02;
-    rid[0].dwFlags = RIDEV_INPUTSINK;
+    rid[0].dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
     rid[0].hwndTarget = hiddenWindow;
 
     if (!RegisterRawInputDevices(rid, 1, sizeof(rid[0]))) {
@@ -466,10 +500,11 @@ NAN_METHOD(ProcessMessages) {
 
         Nan::HandleScope scope;
 
-        if (event.type == "move" && !moveCallback.IsEmpty()) {
+        if ((event.type == "move" || event.type == "button") && !moveCallback.IsEmpty()) {
             v8::Local<v8::Function> callback = New(moveCallback);
             v8::Local<v8::Object> eventObj = New<v8::Object>();
 
+            Nan::Set(eventObj, Nan::New("type").ToLocalChecked(), Nan::New(event.type.c_str()).ToLocalChecked());
             Nan::Set(eventObj, Nan::New("deviceHandle").ToLocalChecked(), Nan::New<v8::Number>((double)(uintptr_t)event.hDevice));
             Nan::Set(eventObj, Nan::New("deviceName").ToLocalChecked(), Nan::New(event.deviceName.c_str()).ToLocalChecked());
             Nan::Set(eventObj, Nan::New("x").ToLocalChecked(), Nan::New<v8::Number>(event.x));
@@ -477,6 +512,7 @@ NAN_METHOD(ProcessMessages) {
             Nan::Set(eventObj, Nan::New("dx").ToLocalChecked(), Nan::New<v8::Number>(event.deltaX));
             Nan::Set(eventObj, Nan::New("dy").ToLocalChecked(), Nan::New<v8::Number>(event.deltaY));
             Nan::Set(eventObj, Nan::New("flags").ToLocalChecked(), Nan::New<v8::Number>(event.flags));
+            Nan::Set(eventObj, Nan::New("action").ToLocalChecked(), Nan::New(event.action.c_str()).ToLocalChecked());
 
             v8::Local<v8::Value> argv[] = { eventObj };
             Nan::Call(callback, Nan::GetCurrentContext()->Global(), 1, argv);

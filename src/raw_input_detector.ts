@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { ImprovedUSBMonitor } from './improved_usb_monitor';
-import { DeviceChangeData, MouseDevice, MouseMoveData, RawInputModuleInterface } from './types';
+import { DeviceChangeData, MouseDevice, RawInputModuleInterface } from './types';
 
 export class RawInputMouseDetector extends EventEmitter {
   private isActive: boolean = false;
@@ -111,9 +111,13 @@ export class RawInputMouseDetector extends EventEmitter {
   private handleMouseMove(moveData: any): void {
     this.lastMoveTimestamp = Date.now();
 
+    if (moveData?.type === 'button') {
+    }
+
     let actualData: any;
     if (moveData && moveData.type === 'mouseMove' && moveData.device) {
       actualData = {
+        type: 'move',
         deviceHandle: moveData.device.handle,
         deviceName: moveData.device.name,
         x: moveData.device.x,
@@ -127,6 +131,11 @@ export class RawInputMouseDetector extends EventEmitter {
     }
 
     if (!actualData || actualData.deviceHandle === undefined || actualData.deviceHandle === null) {
+      return;
+    }
+
+    if (actualData.type === 'button') {
+      this.emit('mouseButton', actualData);
       return;
     }
 
@@ -175,7 +184,7 @@ export class RawInputMouseDetector extends EventEmitter {
       return;
     }
 
-    const mouseData: MouseMoveData = {
+    const mouseData: any = {
       deviceId: deviceKey,
       deviceName: cleanDeviceName,
       deviceHandle: actualData.deviceHandle,
@@ -185,6 +194,7 @@ export class RawInputMouseDetector extends EventEmitter {
       dy: actualData.dy || 0,
       timestamp: Date.now(),
       isRawInput: true,
+      type: actualData.type,
     };
 
     this.emit('mouseMove', mouseData);

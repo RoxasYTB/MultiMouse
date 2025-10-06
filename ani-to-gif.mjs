@@ -66,10 +66,6 @@ async function aniToGif(aniPath, gifPath) {
   const buffer = fs.readFileSync(aniPath);
   const { frames: embeddedFrames, seq, rates } = parseAni(buffer);
 
-  console.log(`Converting ANI -> GIF`);
-  console.log(`  input : ${path.resolve(aniPath)}`);
-  console.log(`  output: ${path.resolve(gifPath)}`);
-
   let frames = [];
   if (embeddedFrames.length > 0) {
     frames = embeddedFrames;
@@ -166,7 +162,6 @@ async function aniToGif(aniPath, gifPath) {
   // Wait for stream to finish writing
   return new Promise((resolve, reject) => {
     out.on('finish', () => {
-      console.log(`GIF successfully written: ${path.resolve(gifPath)}`);
       resolve();
     });
     out.on('error', (err) => reject(err));

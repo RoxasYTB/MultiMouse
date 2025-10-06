@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import { readdir as _readdir, rmdir as _rmdir, stat as _stat, unlink as _unlink } from 'fs';
-import { basename, join } from 'path';
+import { join } from 'path';
 import { promisify } from 'util';
 
 const readdir = promisify(_readdir);
@@ -16,7 +16,6 @@ async function rm(p) {
     } else {
       await unlink(p);
     }
-    console.log(`✓ Supprimé: ${basename(p)}`);
   } catch {}
 }
 
@@ -36,14 +35,12 @@ async function compressWithUPX(dir) {
 
     test.on('error', () => {
       hasUPX = false;
-      console.log('⚠ UPX non trouvé - compression binaire ignorée');
+
       resolve();
     });
 
     test.on('exit', async () => {
       if (!hasUPX) return resolve();
-
-      console.log('🗜 Compression UPX des binaires...');
 
       try {
         const files = await readdir(dir);
@@ -60,15 +57,12 @@ async function compressWithUPX(dir) {
               shell: true,
             });
             pr.on('exit', () => {
-              console.log(`  ✓ Compressé: ${file}`);
               resolveCompress();
             });
             pr.on('error', () => resolveCompress());
           });
         }
-      } catch (error) {
-        console.log('⚠ Erreur lors de la compression UPX:', error.message);
-      }
+      } catch (error) {}
 
       resolve();
     });
@@ -97,11 +91,9 @@ async function getDirectorySize(dirPath) {
 
 export default async (ctx) => {
   const out = ctx.appOutDir;
-  console.log(`\n🧹 Optimisation post-build: ${basename(out)}`);
 
   const sizeBeforeBytes = await getDirectorySize(out);
   const sizeBefore = (sizeBeforeBytes / (1024 * 1024)).toFixed(2);
-  console.log(`📦 Taille avant optimisation: ${sizeBefore} Mo`);
 
   const keep = new Set(['en-US.pak', 'fr.pak']);
   const locales = join(out, 'locales');
@@ -109,7 +101,6 @@ export default async (ctx) => {
     const entries = await readdir(locales);
     const toDelete = entries.filter((f) => !keep.has(f));
     await Promise.all(toDelete.map((f) => rm(join(locales, f))));
-    console.log(`🌐 Locales conservées: ${keep.size}/${entries.length}`);
   }
 
   await rm(join(out, 'swiftshader'));
@@ -151,10 +142,5 @@ export default async (ctx) => {
   const sizeAfterBytes = await getDirectorySize(out);
   const sizeAfter = (sizeAfterBytes / (1024 * 1024)).toFixed(2);
   const saved = (sizeBeforeBytes - sizeAfterBytes) / (1024 * 1024);
-
-  console.log(`📦 Taille après optimisation: ${sizeAfter} Mo`);
-  console.log(`💾 Espace économisé: ${saved.toFixed(2)} Mo (${((saved / (sizeBeforeBytes / (1024 * 1024))) * 100).toFixed(1)}%)`);
-
-  console.log('✅ Optimisation terminée - Fichiers critiques conservés\n');
 };
 

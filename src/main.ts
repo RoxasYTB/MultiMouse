@@ -99,6 +99,13 @@ class OrionixAppElectron {
   private updateDeviceDisplayTimer: NodeJS.Timeout | null = null;
   private displayScaleFactor: number = 1.5;
 
+  private ownerHandle: number | null = null;
+  private pressedButtonsByDevice: Map<number, Set<string>> = new Map();
+  private lastHtmlPosByDevice: Map<number, { x: number; y: number }> = new Map();
+  private devicePresent: Set<number> = new Set();
+  private lockTeleportInterval: NodeJS.Timeout | null = null;
+  private lockedPosition: { x: number; y: number } | null = null;
+
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
     this.centerX = this.screenWidth / 2;
@@ -108,19 +115,16 @@ class OrionixAppElectron {
     this.mouseDetector = new RawInputMouseDetector();
     this.cursorTypeDetector = new CursorTypeDetector();
 
-    console.log('Initialisation du gestionnaire de curseur système...');
     try {
       this.addonModule = require(path.join(__dirname, '..', 'bin', 'win32-x64-116', 'Orionix.node'));
 
       try {
         const shutdownHandlerResult = this.addonModule.setupShutdownHandler();
-        console.log('Gestionnaire de fermeture Windows activé:', shutdownHandlerResult);
       } catch (handlerError) {
         console.warn("Impossible d'activer le gestionnaire de fermeture Windows:", handlerError);
       }
 
       const initialCursorState = this.addonModule.getCursorState();
-      console.log('État initial du curseur:', initialCursorState.type);
     } catch (error) {
       console.error('Erreur lors du masquage du curseur système:', error);
       this.cursorHidden = false;
@@ -128,7 +132,6 @@ class OrionixAppElectron {
 
     try {
       this.rawInputAddon = require(path.join(__dirname, '..', 'build', 'Release', 'Orionix_raw_input.node'));
-      console.log('✅ Module Raw Input chargé avec succès pour les fonctions TOPMOST');
     } catch (error) {
       console.warn('⚠️ Impossible de charger le module Raw Input:', error);
     }
@@ -206,6 +209,10 @@ class OrionixAppElectron {
   }
 
   private syncSystemCursorToHTML(cursor: CursorState): void {
+    if (this.ownerHandle !== null && cursor.deviceHandle !== this.ownerHandle) {
+      return;
+    }
+
     if (!this.systemCursorUpdatePending) {
       this.systemCursorUpdatePending = true;
       setImmediate(() => {
@@ -273,7 +280,6 @@ class OrionixAppElectron {
 
     this.fileWatcher.on('change', (filePath: string) => {
       if (filePath.endsWith('cursorsToUse.json')) {
-        console.log('cursorsToUse.json modifié - rechargement des mappings de curseurs...');
         this.sendToAllOverlays('cursors-config-changed', {});
 
         this.cursors.forEach((cursor, deviceId) => {
@@ -288,23 +294,127 @@ class OrionixAppElectron {
     });
   }
 
+  private onDeviceButton(event: any): void {
+    const dev = event.deviceHandle;
+    const actionParts = event.action.split('-');
+    if (actionParts.length !== 2) return;
+
+    const btn = actionParts[0];
+    const dir = actionParts[1];
+
+    const set = this.pressedButtonsByDevice.get(dev) ?? new Set<string>();
+    if (dir === 'down') {
+      set.add(btn);
+    } else if (dir === 'up') {
+      set.delete(btn);
+    }
+    this.pressedButtonsByDevice.set(dev, set);
+
+    if (!this.ownerHandle && dir === 'down') {
+      this.ownerHandle = dev;
+      const pos = this.lastHtmlPosByDevice.get(dev) ?? this.getFallbackSystemPos();
+      this.lockedPosition = { x: pos.x, y: pos.y };
+
+      if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
+        this.mouseDetector.rawInputModule.setSystemCursorPos(this.lockedPosition.x, this.lockedPosition.y);
+      }
+
+      this.startLockTeleportLoop();
+    }
+
+    if (this.ownerHandle === dev && set.size === 0) {
+      this.ownerHandle = null;
+      this.lockedPosition = null;
+      this.stopLockTeleportLoop();
+    }
+  }
+
+  private startLockTeleportLoop(): void {
+    if (this.lockTeleportInterval) {
+      return;
+    }
+
+    this.lockTeleportInterval = setInterval(() => {
+      if (this.ownerHandle === null || !this.lockedPosition) {
+        this.stopLockTeleportLoop();
+        return;
+      }
+
+      if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
+        this.mouseDetector.rawInputModule.setSystemCursorPos(this.lockedPosition.x, this.lockedPosition.y);
+      }
+    }, 1);
+  }
+
+  private stopLockTeleportLoop(): void {
+    if (this.lockTeleportInterval) {
+      clearInterval(this.lockTeleportInterval);
+      this.lockTeleportInterval = null;
+    }
+  }
+
+  private onDeviceMove(event: any): void {
+    const dev = event.deviceHandle;
+    this.devicePresent.add(dev);
+
+    const pos = this.lastHtmlPosByDevice.get(dev);
+    if (!pos) return;
+
+    if (this.ownerHandle) {
+      if (dev === this.ownerHandle) {
+        if (this.lockedPosition && this.mouseDetector.rawInputModule?.setSystemCursorPos) {
+          this.mouseDetector.rawInputModule.setSystemCursorPos(this.lockedPosition.x, this.lockedPosition.y);
+        }
+      } else {
+      }
+    } else {
+      if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
+        this.mouseDetector.rawInputModule.setSystemCursorPos(pos.x, pos.y);
+      }
+    }
+  }
+
+  private onDeviceRemoval(dev: number): void {
+    this.devicePresent.delete(dev);
+    this.pressedButtonsByDevice.delete(dev);
+    this.lastHtmlPosByDevice.delete(dev);
+    if (this.ownerHandle === dev) {
+      this.ownerHandle = null;
+      this.lockedPosition = null;
+    }
+  }
+
+  private getFallbackSystemPos(): { x: number; y: number } {
+    if (this.mouseDetector.rawInputModule?.getSystemCursorPos) {
+      try {
+        return this.mouseDetector.rawInputModule.getSystemCursorPos();
+      } catch (e) {}
+    }
+    return { x: this.centerX, y: this.centerY };
+  }
+
   private setupMouseEvents(): void {
     this.mouseDetector.on('deviceAdded', (device: MouseDevice) => {
-      console.log(`=== DEVICE ADDED ===`);
-      console.log(`Device ID: ${device.id}, Name: ${device.name}`);
+      if (device.handle) {
+        this.devicePresent.add(device.handle);
+      }
       this.updateDeviceDisplay();
     });
 
     this.mouseDetector.on('deviceRemoved', (device: MouseDevice) => {
-      console.log(`=== DEVICE REMOVED ===`);
-      console.log(`Device ID: ${device.id}, Name: ${device.name}`);
-      console.log(`Suppression du curseur associé...`);
       this.removeCursor(device.id);
+      if (device.handle) {
+        this.onDeviceRemoval(device.handle);
+      }
       this.updateDeviceDisplay();
     });
 
     this.mouseDetector.on('mouseMove', (data: MouseMoveData) => {
       this.handleMouseMove(data);
+    });
+
+    this.mouseDetector.on('mouseButton', (event: any) => {
+      this.onDeviceButton(event);
     });
 
     this.mouseDetector.on('started', () => {});
@@ -341,9 +451,6 @@ class OrionixAppElectron {
       this.centerY = this.screenHeight / 2;
 
       this.displayScaleFactor = primaryDisplay.scaleFactor;
-      console.log(`🖥️ Display Scale Factor détecté: ${this.displayScaleFactor} (${this.displayScaleFactor * 100}%)`);
-      console.log(`📐 Résolution logique: ${this.screenWidth}x${this.screenHeight}`);
-      console.log(`📐 Résolution physique: ${this.screenWidth * this.displayScaleFactor}x${this.screenHeight * this.displayScaleFactor}`);
 
       this.exportCursors().catch((error) => {
         console.warn("Impossible d'exporter les curseurs au démarrage:", error);
@@ -392,8 +499,6 @@ class OrionixAppElectron {
       this.displayScaleFactor = newScaleFactor;
       this.centerX = this.screenWidth / 2;
       this.centerY = this.screenHeight / 2;
-
-      console.log(`🖥️ Dimensions d'écran mises à jour: ${newWidth}x${newHeight}, Scale: ${newScaleFactor}`);
 
       this.createOverlayWindows();
 
@@ -444,8 +549,6 @@ class OrionixAppElectron {
   }
 
   private async exportCursors(): Promise<void> {
-    console.log('=== EXPORT DES CURSEURS AU DÉMARRAGE ===');
-
     try {
       let scriptPath: string;
 
@@ -455,15 +558,12 @@ class OrionixAppElectron {
         scriptPath = path.join(__dirname, '..', 'export-cursors.ps1');
       }
 
-      console.log(`Chemin du script PowerShell: ${scriptPath}`);
-
       if (!fs.existsSync(scriptPath)) {
         console.error(`Script PowerShell introuvable: ${scriptPath}`);
         return;
       }
 
       const workingDir = path.dirname(scriptPath);
-      console.log(`Répertoire de travail: ${workingDir}`);
 
       return new Promise<void>((resolve, reject) => {
         const command = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
@@ -486,10 +586,8 @@ class OrionixAppElectron {
             }
 
             if (stdout) {
-              console.log('Sortie PowerShell:', stdout);
             }
 
-            console.log('✅ Export des curseurs terminé avec succès');
             resolve();
           },
         );
@@ -502,13 +600,10 @@ class OrionixAppElectron {
 
   private startPeriodicCursorExport(): void {
     this.periodicExportTimer = setInterval(() => {
-      console.log('=== EXPORT PÉRIODIQUE DES CURSEURS ===');
       this.exportCursors().catch((error) => {
         console.warn("Erreur lors de l'export périodique des curseurs:", error);
       });
     }, 5 * 60 * 1000);
-
-    console.log('Export périodique des curseurs démarré (toutes les 5 minutes)');
   }
 
   private startMouseInput(): void {
@@ -537,15 +632,10 @@ class OrionixAppElectron {
         iconPath = path.join(process.resourcesPath, 'app', 'assets', 'icon.ico');
       }
 
-      console.log('Tentative de chargement icône tray:', iconPath);
-      console.log('Icône existe:', fs.existsSync(iconPath));
-
       let trayImage: Electron.NativeImage;
       if (fs.existsSync(iconPath)) {
         trayImage = nativeImage.createFromPath(iconPath);
-        console.log('Icône tray chargée avec succès');
       } else {
-        console.log('Icône tray non trouvée, utilisation icône vide');
         trayImage = nativeImage.createEmpty();
       }
 
@@ -555,7 +645,6 @@ class OrionixAppElectron {
 
       this.tray.on('click', () => {
         if (!this.allowTrayLeftClick) {
-          console.log('Left-click on tray ignored (allowTrayLeftClick=false)');
           return;
         }
 
@@ -614,8 +703,6 @@ class OrionixAppElectron {
   }
 
   private createSettingsWindow(): void {
-    console.log('Création de la fenêtre de settings...');
-
     if (!this.settingsIPCInitialized) {
       this.setupSettingsIPC();
       this.settingsIPCInitialized = true;
@@ -646,8 +733,6 @@ class OrionixAppElectron {
     this.settingsWindow.loadFile(path.join(__dirname, '..', 'settingsInterface', 'settings.html'));
 
     this.settingsWindow.once('ready-to-show', () => {
-      console.log('Fenêtre de settings prête, affichage...');
-
       this.settingsWindow!.setSize(1400, 1000);
       this.settingsWindow!.center();
       this.settingsWindow!.show();
@@ -658,14 +743,16 @@ class OrionixAppElectron {
     });
 
     this.settingsWindow.on('closed', () => {
-      console.log('Fenêtre de settings fermée');
       this.settingsWindow = null;
     });
   }
 
   private setupSettingsIPC(): void {
+    ipcMain.on('cursor:htmlPos', (event, data: { deviceHandle: number; x: number; y: number }) => {
+      this.lastHtmlPosByDevice.set(data.deviceHandle, { x: data.x, y: data.y });
+    });
+
     ipcMain.on('settings-changed', (event, newSettings) => {
-      console.log('Configuration mise à jour:', newSettings);
       this.updateConfig(newSettings);
     });
 
@@ -681,15 +768,12 @@ class OrionixAppElectron {
 
     ipcMain.on('reset-all-settings', (event, defaultSettings) => {
       try {
-        console.log('🔄 Réinitialisation de config.json aux valeurs par défaut...');
-
         fs.writeFileSync(this.configPath, JSON.stringify(defaultSettings, null, 2));
 
         this.config = { ...defaultSettings };
 
         this.applySettingsChanges(defaultSettings);
 
-        console.log('✅ Config.json réinitialisé avec succès');
         event.reply('settings-reset-complete', defaultSettings);
 
         this.sendToAllOverlays('settings-updated', this.config);
@@ -701,7 +785,6 @@ class OrionixAppElectron {
 
     ipcMain.on('open-external-powershell', (event, url) => {
       try {
-        console.log(`🔗 Ouverture de ${url} via PowerShell...`);
         const { spawn } = require('child_process');
 
         const powershellProcess = spawn('powershell', ['-Command', `Start-Process "${url}"`], {
@@ -711,7 +794,6 @@ class OrionixAppElectron {
         });
 
         powershellProcess.unref();
-        console.log(`✅ URL ouverte avec succès: ${url}`);
       } catch (error) {
         console.error('❌ Erreur ouverture URL via PowerShell:', error);
 
@@ -722,7 +804,6 @@ class OrionixAppElectron {
 
     ipcMain.on('get-system-cursor-size', async (event) => {
       try {
-        console.log('🖱️ Récupération de la taille du curseur système...');
         const { spawn } = require('child_process');
 
         const powershellCommand = `Get-ItemProperty "HKCU:\\Control Panel\\Cursors" | Select-Object -ExpandProperty CursorBaseSize`;
@@ -741,7 +822,6 @@ class OrionixAppElectron {
           const size = parseInt(output.trim());
           const cursorSize = isNaN(size) ? 32 : size;
 
-          console.log(`✅ Taille du curseur système détectée: ${cursorSize}`);
           event.reply('system-cursor-size', cursorSize);
 
           if (cursorSize !== 32) {
@@ -796,18 +876,14 @@ class OrionixAppElectron {
     }
 
     this.saveConfig();
-
-    console.log('Paramètres appliqués:', newSettings);
   }
 
   private setupGlobalShortcuts(): void {
     globalShortcut.register('CommandOrControl+Shift+S', () => {
-      console.log('Raccourci paramètres activé');
       this.openSettingsWindow();
     });
 
     globalShortcut.register('CommandOrControl+Shift+D', () => {
-      console.log('Raccourci debug activé');
       this.config.overlayDebug = !this.config.overlayDebug;
       this.applySettingsChanges({ overlayDebug: this.config.overlayDebug });
     });
@@ -823,7 +899,7 @@ class OrionixAppElectron {
     const cursorId = mouseData.deviceId;
     const deviceName = mouseData.deviceName || 'Device Inconnu';
     const isRawInput = mouseData.isRawInput || false;
-    const deviceHandle = mouseData.deviceHandle || 'unknown';
+    const deviceHandle = mouseData.deviceHandle;
     const dx = mouseData.dx || 0;
     const dy = mouseData.dy || 0;
 
@@ -838,7 +914,7 @@ class OrionixAppElectron {
       cursor = {
         id: cursorId,
         deviceName: deviceName,
-        deviceHandle: deviceHandle,
+        deviceHandle: deviceHandle || 0,
         x: this.centerX,
         y: this.centerY,
         color: this.config.cursorColors[colorIndex],
@@ -870,7 +946,6 @@ class OrionixAppElectron {
     if (beforeClampX !== newX || beforeClampY !== newY) {
       const now = performance.now();
       if (now - this.lastLogTime > this.logThrottle) {
-        console.log(`⚠️ Curseur ${cursorId} bloqué aux limites: X[${beforeClampX.toFixed(0)} → ${newX.toFixed(0)}], Y[${beforeClampY.toFixed(0)} → ${newY.toFixed(0)}]`);
         this.lastLogTime = now;
       }
     }
@@ -878,6 +953,12 @@ class OrionixAppElectron {
     cursor.x = newX;
     cursor.y = newY;
     cursor.lastUpdate = performance.now();
+
+    if (this.ownerHandle !== null && typeof deviceHandle === 'number' && deviceHandle === this.ownerHandle) {
+      const physicalX = Math.round(newX * this.displayScaleFactor);
+      const physicalY = Math.round(newY * this.displayScaleFactor);
+      this.lockedPosition = { x: physicalX, y: physicalY };
+    }
 
     const movement = Math.abs(dx) + Math.abs(dy);
     cursor.totalMovement = (cursor.totalMovement || 0) + movement;
@@ -899,6 +980,13 @@ class OrionixAppElectron {
 
     if (this.config.highPerformanceMode && cursorId === this.lastActiveDevice) {
       this.syncSystemCursorToHTML(cursor);
+    }
+
+    if (typeof mouseData.deviceHandle === 'number') {
+      this.onDeviceMove({
+        deviceHandle: mouseData.deviceHandle,
+        type: 'move',
+      });
     }
 
     this.sendInstantCursorUpdate(cursor);
@@ -933,29 +1021,19 @@ class OrionixAppElectron {
   private removeCursor(deviceId: string): void {
     if (this.cursors.has(deviceId)) {
       const cursor = this.cursors.get(deviceId)!;
-      console.log(`=== REMOVING CURSOR ===`);
-      console.log(`Suppression du curseur pour device: ${deviceId}`);
-      console.log(`Device name: ${cursor.deviceName}`);
-      console.log(`Last update: ${new Date(cursor.lastUpdate).toLocaleTimeString()}`);
-      console.log(`Total movement: ${cursor.totalMovement.toFixed(2)}`);
 
       this.cursors.delete(deviceId);
       this.manageSystemCursorVisibility();
 
-      console.log(`Envoi de l'événement cursor-removed au renderer...`);
       this.sendToAllOverlays('cursor-removed', deviceId);
 
       if (this.lastActiveDevice === deviceId) {
         const remainingCursors = Array.from(this.cursors.keys());
         this.lastActiveDevice = remainingCursors.length > 0 ? remainingCursors[0] : null;
-        console.log(`Device actif changé vers: ${this.lastActiveDevice || 'aucun'}`);
       }
 
       this.updateDeviceDisplay();
-
-      console.log(`Curseur ${deviceId} supprimé avec succès. Curseurs restants: ${this.cursors.size}`);
     } else {
-      console.log(`⚠️ Tentative de suppression d'un curseur inexistant: ${deviceId}`);
     }
   }
 
@@ -987,15 +1065,11 @@ class OrionixAppElectron {
   }
 
   private createOverlayWindows(): void {
-    console.log('Creation des fenetres overlay pour tous les ecrans...');
-
     this.closeAllOverlays();
 
     this.displays = screen.getAllDisplays();
     this.displayBounds.clear();
     this.cachedTotalBounds = null;
-
-    console.log(`Nombre d'ecrans detectes: ${this.displays.length}`);
 
     this.analyzeDisplayConfiguration();
 
@@ -1055,22 +1129,16 @@ class OrionixAppElectron {
             if (this.rawInputAddon.setWindowTopMost) {
               const success = this.rawInputAddon.setWindowTopMost(hwnd);
               if (success) {
-                console.log(`✅ Fenêtre overlay ${index + 1} configurée comme TOPMOST (au-dessus de la barre des tâches)`);
-
                 setInterval(() => {
                   if (this.rawInputAddon && this.rawInputAddon.keepWindowTopMost && hwnd) {
                     this.rawInputAddon.keepWindowTopMost(hwnd);
                   }
                 }, 500);
               } else {
-                console.log(`⚠️ Impossible de définir la fenêtre ${index + 1} comme TOPMOST`);
               }
             } else {
-              console.log(`⚠️ Fonction setWindowTopMost non disponible dans le module`);
             }
-          } catch (err) {
-            console.log(`❌ Erreur lors de la configuration TOPMOST pour l'écran ${index + 1}:`, err);
-          }
+          } catch (err) {}
         }
       } else {
         overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
@@ -1078,10 +1146,8 @@ class OrionixAppElectron {
 
       const overlayUrl = `file://${path.join(__dirname, '..', 'overlay.html')}?displayIndex=${index}&displayId=${display.id}&offsetX=${display.bounds.x}&offsetY=${display.bounds.y}&scaleFactor=${display.scaleFactor}`;
       overlayWindow.loadURL(overlayUrl);
-      console.log(`📺 Chargement overlay avec URL: ${overlayUrl}`);
 
       overlayWindow.once('ready-to-show', () => {
-        console.log(`Fenetre overlay ${index + 1} prete, affichage...`);
         overlayWindow.show();
         overlayWindow.setIgnoreMouseEvents(true);
 
@@ -1096,22 +1162,18 @@ class OrionixAppElectron {
           scaleFactor: display.scaleFactor,
         });
 
-        console.log(`✅ Overlay ${index + 1} configuré - Offset: X=${display.bounds.x}, Y=${display.bounds.y}, Scale: ${display.scaleFactor}`);
-
         if (index === 0) {
           this.sendExistingCursorsToRenderer();
         }
       });
 
       overlayWindow.on('closed', () => {
-        console.log(`Fenêtre overlay ${index + 1} fermée`);
         this.overlayWindows.delete(display.id);
         this.displayBounds.delete(display.id);
       });
 
       overlayWindow.on('close', (e) => {
         if (index === 0) {
-          console.log("Fermeture de l'application demandée");
           this.shutdown();
         }
       });
@@ -1132,11 +1194,8 @@ class OrionixAppElectron {
 
   private analyzeDisplayConfiguration(): void {
     if (this.displays.length < 2) {
-      console.log('Configuration mono-écran détectée');
       return;
     }
-
-    console.log('🖥️ Analyse de la configuration multi-écrans...');
 
     const sortedDisplays = [...this.displays].sort((a, b) => a.bounds.x - b.bounds.x);
 
@@ -1183,11 +1242,7 @@ class OrionixAppElectron {
 
       minY = Math.min(minY, bounds.y);
       maxY = Math.max(maxY, bottom);
-
-      console.log(`   📐 Écran ${index + 1} bounds: X[${bounds.x} → ${right}], Y[${bounds.y} → ${bottom}]`);
     });
-
-    console.log(`   ✅ Bounds totaux: X[${minX} → ${maxX}] (largeur: ${maxX - minX}px), Y[${minY} → ${maxY}] (hauteur: ${maxY - minY}px)`);
 
     this.cachedTotalBounds = { minX, maxX, minY, maxY };
     return this.cachedTotalBounds;
@@ -1281,7 +1336,6 @@ class OrionixAppElectron {
   }
 
   private sendExistingCursorsToRenderer(): void {
-    console.log('=== ENVOI CURSEURS EXISTANTS A TOUS LES RENDERERS ===');
     const existingCursors = Array.from(this.cursors.values()).map((cursor) => ({
       deviceId: cursor.id,
       x: cursor.x,
@@ -1292,8 +1346,6 @@ class OrionixAppElectron {
       cursorFile: cursor.cursorFile,
       isVisible: true,
     }));
-
-    console.log('Curseurs à envoyer:', existingCursors);
 
     if (existingCursors.length > 0) {
       this.sendToAllOverlays('cursors-instant-update', {
@@ -1318,7 +1370,6 @@ class OrionixAppElectron {
     });
 
     ipcMain.on('renderer-ready', () => {
-      console.log("=== RENDERER SIGNALE QU'IL EST PRET ===");
       this.sendExistingCursorsToRenderer();
     });
 
@@ -1338,20 +1389,18 @@ class OrionixAppElectron {
     });
 
     ipcMain.handle('force-scan-devices', () => {
-      console.log('[IPC] Force scan des périphériques demandé');
-
       return { success: true, message: 'Surveillance USB automatique active' };
     });
 
     ipcMain.handle('get-monitored-devices', () => {
       const devices = this.mouseDetector.getMonitoredDevices();
-      console.log('[IPC] Périphériques surveillés:', devices.length);
+
       return devices;
     });
 
     ipcMain.handle('get-active-cursors', () => {
       const cursors = Array.from(this.cursors.values());
-      console.log('[IPC] Curseurs actifs:', cursors.length);
+
       return cursors.map((cursor) => ({
         id: cursor.id,
         deviceName: cursor.deviceName,
@@ -1364,24 +1413,20 @@ class OrionixAppElectron {
     });
 
     ipcMain.handle('clear-disconnected-cursors', () => {
-      console.log('[IPC] Nettoyage des curseurs déconnectés demandé');
       const clearedCount = this.clearDisconnectedCursors();
       return { success: true, clearedCount, message: `${clearedCount} curseurs nettoyés` };
     });
 
     ipcMain.handle('simulate-device-disconnect', (_, deviceId: string) => {
-      console.log(`[IPC] Simulation de déconnexion demandée pour: ${deviceId}`);
       this.simulateDeviceDisconnect(deviceId);
       return { success: true, message: `Déconnexion simulée pour ${deviceId}` };
     });
 
     ipcMain.handle('reset-config', () => {
-      console.log('[IPC] Reset de configuration demandé');
       return this.resetConfig();
     });
 
     ipcMain.handle('reset-to-defaults', () => {
-      console.log('[IPC] Reset aux valeurs par défaut demandé');
       return this.resetToDefaults();
     });
 
@@ -1422,7 +1467,6 @@ class OrionixAppElectron {
 
       this.sendToAllOverlays('config-updated', this.config);
 
-      console.log('Configuration réinitialisée aux valeurs par défaut');
       return { success: true, message: 'Configuration réinitialisée avec succès' };
     } catch (error) {
       console.error('Erreur lors de la réinitialisation:', error);
@@ -1450,7 +1494,7 @@ class OrionixAppElectron {
               resolve(32);
             } else {
               const detectedSize = parseInt(stdout.toString().trim()) || 32;
-              console.log('Taille de curseur système détectée:', detectedSize);
+
               resolve(Math.max(16, Math.min(128, detectedSize)));
             }
           });
@@ -1490,7 +1534,6 @@ class OrionixAppElectron {
 
     for (const [cursorId, cursor] of this.cursors) {
       if (!connectedDeviceIds.has(cursorId)) {
-        console.log(`[ClearCursors] Curseur orphelin détecté: ${cursorId} - ${cursor.deviceName}`);
         cursorsToRemove.push(cursorId);
       }
     }
@@ -1500,15 +1543,11 @@ class OrionixAppElectron {
       clearedCount++;
     }
 
-    console.log(`[ClearCursors] ${clearedCount} curseurs orphelins supprimés`);
     return clearedCount;
   }
 
   private simulateDeviceDisconnect(deviceId: string): void {
-    console.log(`[SimulateDisconnect] Simulation de déconnexion pour: ${deviceId}`);
-
     if (this.cursors.has(deviceId)) {
-      console.log(`[SimulateDisconnect] Suppression du curseur: ${deviceId}`);
       this.removeCursor(deviceId);
     }
 
@@ -1524,25 +1563,20 @@ class OrionixAppElectron {
 
     this.isShuttingDown = true;
 
-    console.log('Restauration du curseur système...');
     try {
       if (this.addonModule && this.cursorHidden) {
         const showResult = this.addonModule.showSystemCursor();
-        console.log('Curseur système restauré:', showResult);
 
         if (!showResult) {
-          console.log('Échec de la restauration automatique, tentative de restauration manuelle...');
         }
       } else if (!this.addonModule) {
         console.warn('Module addon non disponible pour la restauration');
       } else {
-        console.log("Le curseur système n'était pas masqué");
       }
     } catch (error) {
       console.error('Erreur lors de la restauration du curseur:', error);
 
       try {
-        console.log('Tentative de restauration de secours...');
       } catch (fallbackError) {
         console.error('Échec de la restauration de secours:', fallbackError);
       }
@@ -1556,9 +1590,13 @@ class OrionixAppElectron {
       clearTimeout(this.highPrecisionTimer);
     }
 
+    if (this.lockTeleportInterval) {
+      clearInterval(this.lockTeleportInterval);
+      this.lockTeleportInterval = null;
+    }
+
     if (this.periodicExportTimer) {
       clearInterval(this.periodicExportTimer);
-      console.log("Timer d'export périodique arrêté");
     }
 
     if (this.fileWatcher) {
@@ -1589,28 +1627,22 @@ class OrionixAppElectron {
 
 const OrionixApp = new OrionixAppElectron();
 
-console.log('Orionix Electron app started.');
-
 process.on('uncaughtException', (_error: Error) => {
-  console.log('Exception non capturée détectée, restauration des curseurs...');
   OrionixApp.shutdown();
 });
 
 process.on('unhandledRejection', (_reason: any) => {});
 
 process.on('SIGINT', () => {
-  console.log('Signal SIGINT reçu, restauration des curseurs...');
   OrionixApp.shutdown();
 });
 
 process.on('SIGTERM', () => {
-  console.log('Signal SIGTERM reçu, restauration des curseurs...');
   OrionixApp.shutdown();
 });
 
 if (process.platform === 'win32') {
   process.on('SIGHUP', () => {
-    console.log('Signal SIGHUP reçu, restauration des curseurs...');
     OrionixApp.shutdown();
   });
 }

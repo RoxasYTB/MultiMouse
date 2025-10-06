@@ -7,7 +7,6 @@ ipcMain.on('reset-all-settings', (event, defaultSettings) => {
   try {
     const configPath = path.join(__dirname, 'config.json');
     fs.writeFileSync(configPath, JSON.stringify(defaultSettings, null, 2));
-    console.log('Config.json has been reset to defaults');
 
     event.reply('settings-reset-complete', defaultSettings);
   } catch (error) {
@@ -24,7 +23,7 @@ ipcMain.handle('open-external-powershell', async (event, url) => {
     });
 
     powershellProcess.unref();
-    console.log(`Opened URL via PowerShell: ${url}`);
+
     return { success: true };
   } catch (error) {
     console.error('Error opening URL via PowerShell:', error);
@@ -52,7 +51,7 @@ ipcMain.handle('get-system-cursor-size', async (event) => {
       process.on('close', (code) => {
         const size = parseInt(output.trim());
         const cursorSize = isNaN(size) ? 32 : size;
-        console.log(`System cursor size: ${cursorSize}`);
+
         resolve(cursorSize);
       });
 
@@ -76,7 +75,6 @@ ipcMain.on('open-external-powershell', (event, url) => {
     });
 
     powershellProcess.unref();
-    console.log(`Opened URL via PowerShell: ${url}`);
   } catch (error) {
     console.error('Error opening URL via PowerShell:', error);
     shell.openExternal(url);

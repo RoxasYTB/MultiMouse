@@ -46,17 +46,14 @@ class OrionixRenderer {
       if (urlParams.has('displayIndex')) {
         this.displayIndex = parseInt(urlParams.get('displayIndex')!) || 0;
         this.screenInfoReceived = true;
-        console.log(`🔒 DisplayIndex initialisé depuis URL: ${this.displayIndex + 1}`);
       }
 
       if (urlParams.has('offsetX')) {
         this.screenOffsetX = parseFloat(urlParams.get('offsetX')!) || 0;
-        console.log(`🔒 OffsetX initialisé depuis URL: ${this.screenOffsetX}`);
       }
 
       if (urlParams.has('offsetY')) {
         this.screenOffsetY = parseFloat(urlParams.get('offsetY')!) || 0;
-        console.log(`🔒 OffsetY initialisé depuis URL: ${this.screenOffsetY}`);
       }
 
       if (this.screenInfoReceived) {
@@ -161,7 +158,6 @@ class OrionixRenderer {
       }
 
       const root = document.documentElement;
-      console.log('Chargement des mappings de curseurs:', map);
 
       for (const [key, filename] of Object.entries(map)) {
         const varName = `--cursor-${String(key).toLowerCase()}`;
@@ -176,7 +172,7 @@ class OrionixRenderer {
             const fs = require('fs');
             const candidate = path.join(process.resourcesPath, 'app.asar.unpacked', cleanPath);
             const exists = fs.existsSync(candidate);
-            console.log(`Diagnostic: checking unpacked candidate for ${cleanPath}: ${candidate} -> exists=${exists}`);
+
             if (exists) {
               const fileUrl = 'file:///' + candidate.replace(/\\/g, '/');
               finalPath = fileUrl;
@@ -225,16 +221,13 @@ class OrionixRenderer {
           if (String(finalPath).startsWith('file:///')) {
             const filePath = String(finalPath).replace('file:///', '').replace(/^\/+/, '');
             const exists = fs.existsSync(filePath);
-            console.log(`Mapping curseur: ${key} -> ${finalPath} (file exists=${exists})`);
+
             if (!exists) {
               console.warn(`Mapping diagnostic: fichier introuvable pour ${key}: ${filePath}`);
             }
           } else {
-            console.log(`Mapping curseur: ${key} -> ${finalPath}`);
           }
-        } catch (e) {
-          console.log(`Mapping curseur: ${key} -> ${finalPath} (no fs available)`);
-        }
+        } catch (e) {}
       }
     } catch (err) {
       console.warn('Could not load cursor mappings:', err);
@@ -242,13 +235,10 @@ class OrionixRenderer {
   }
 
   private handleSystemCursorSize(size: number): void {
-    console.log('🖱️ Taille du curseur système reçue:', size);
     this.systemCursorSize = size;
 
     const scaleRatio = this.systemCursorSize / 32;
     document.documentElement.style.setProperty('--cursor-scale', scaleRatio.toString());
-
-    console.log(`✅ Scaling des curseurs appliqué: ${scaleRatio}x (taille système: ${this.systemCursorSize})`);
 
     this.cursors.forEach((cursor) => {
       if (cursor.element) {
@@ -269,7 +259,6 @@ class OrionixRenderer {
   }
 
   private async reloadCursorMappings(): Promise<void> {
-    console.log('Rechargement des mappings de curseurs...');
     this.cursorMappings.clear();
     await this.loadCursorMappings();
 
@@ -287,7 +276,7 @@ class OrionixRenderer {
     if (cursorKey === 'hidden') {
       element.style.display = 'none';
       element.style.visibility = 'hidden';
-      console.log(`Curseur caché: ${cursorType}`);
+
       return;
     }
 
@@ -309,13 +298,10 @@ class OrionixRenderer {
 
         if (needsInvert) {
           element.style.filter = 'invert(1) drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4))';
-          console.log(`Filtre invert appliqué pour: ${cursorType}`);
         } else {
           element.style.filter = 'drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4))';
         }
       }
-
-      console.log(`Curseur appliqué: ${cursorType} -> ${cursorPath}`);
     } else {
       console.warn(`Pas de mapping trouvé pour le curseur: ${cursorType}`);
 
@@ -335,7 +321,6 @@ class OrionixRenderer {
   }
 
   private hideCursor(deviceId: string): void {
-    console.log(`🫥 Masquage du curseur: ${deviceId}`);
     const cursor = this.cursors.get(deviceId);
     if (cursor && cursor.element) {
       cursor.element.style.opacity = '0';
@@ -344,8 +329,6 @@ class OrionixRenderer {
   }
 
   private handleScreenInfo(screenInfo: any): void {
-    console.log('📺 Informations écran reçues:', screenInfo);
-
     this.screenOffsetX = screenInfo.offsetX || 0;
     this.screenOffsetY = screenInfo.offsetY || 0;
     this.screenWidth = screenInfo.bounds?.width || window.innerWidth;
@@ -354,21 +337,12 @@ class OrionixRenderer {
     if (!this.screenInfoReceived) {
       this.displayIndex = screenInfo.displayIndex || 0;
       this.screenInfoReceived = true;
-      console.log(`🔒 DisplayIndex verrouillé à: ${this.displayIndex + 1}`);
     } else {
-      console.log(`⚠️ Tentative de changement displayIndex ignorée (déjà configuré à ${this.displayIndex + 1})`);
     }
 
     const scaleFactor = screenInfo.scaleFactor || 1.0;
     const physicalWidth = Math.round(this.screenWidth * scaleFactor);
     const physicalHeight = Math.round(this.screenHeight * scaleFactor);
-
-    console.log(`🎯 Configuration écran:`);
-    console.log(`   - Numéro: ${this.displayIndex + 1}`);
-    console.log(`   - Offset: X=${this.screenOffsetX}, Y=${this.screenOffsetY}`);
-    console.log(`   - Taille logique: ${this.screenWidth}x${this.screenHeight}`);
-    console.log(`   - Taille physique: ${physicalWidth}x${physicalHeight}`);
-    console.log(`   - Scale factor: ${scaleFactor} (${scaleFactor * 100}%)`);
 
     document.documentElement.setAttribute('data-display-id', screenInfo.displayId.toString());
     document.documentElement.setAttribute('data-display-index', this.displayIndex.toString());
@@ -519,6 +493,26 @@ class OrionixRenderer {
     }
     cursor.cursorType = d.cursorType || cursor.cursorType;
     cursor.data = d;
+
+    this.reportHtmlPosition(d);
+  }
+
+  private reportHtmlPosition(d: any): void {
+    if (!d.deviceId || d.x === undefined || d.y === undefined) return;
+
+    const deviceIdMatch = d.deviceId.match(/device_(\d+)/);
+    if (!deviceIdMatch) return;
+
+    const deviceHandle = parseInt(deviceIdMatch[1], 10);
+    if (isNaN(deviceHandle)) return;
+
+    const virtualX = this.screenOffsetX + d.x;
+    const virtualY = this.screenOffsetY + d.y;
+
+    try {
+      const { ipcRenderer } = require('electron');
+      ipcRenderer.send('cursor:htmlPos', { deviceHandle, x: virtualX, y: virtualY });
+    } catch (e) {}
   }
 
   private updateCursorTypeClass(el: HTMLElement, oldT: string | undefined, newT: string): void {
@@ -658,20 +652,13 @@ class OrionixRenderer {
   }
 
   private removeCursor(deviceId: string): void {
-    console.log(`=== RENDERER: REMOVING CURSOR ===`);
-    console.log(`Device ID: ${deviceId}`);
-
     const cursor = this.cursors.get(deviceId);
     if (cursor) {
-      console.log(`Curseur trouvé, suppression de l'élément DOM...`);
       cursor.element.remove();
       this.cursors.delete(deviceId);
       this.lastPositions.delete(deviceId);
       this.updateInfoPanel();
-      console.log(`Curseur supprimé avec succès. Curseurs restants: ${this.cursors.size}`);
     } else {
-      console.log(`Curseur non trouvé pour le device: ${deviceId}`);
-      console.log(`Curseurs actuels:`, Array.from(this.cursors.keys()));
     }
   }
 
@@ -704,13 +691,11 @@ class OrionixRenderer {
   }
 
   private handleSettingsUpdate(settings: any): void {
-    console.log('Settings updated in renderer:', settings);
     this.config = { ...this.config, ...settings };
     this.updateInfoPanel();
   }
 
   private updateCursorOpacity(opacity: number): void {
-    console.log('Updating cursor opacity:', opacity);
     const cursorsContainer = document.getElementById('cursors-container');
     if (cursorsContainer) {
       cursorsContainer.style.opacity = opacity.toString();
@@ -718,8 +703,6 @@ class OrionixRenderer {
   }
 
   private updateColorIdentification(enabled: boolean): void {
-    console.log('Updating color identification:', enabled);
-
     this.config.colorIdentification = enabled;
 
     this.refreshCursorColors();
@@ -740,7 +723,6 @@ class OrionixRenderer {
   }
 
   private toggleDebugMode(enabled: boolean): void {
-    console.log('Toggling debug mode:', enabled);
     const debugInfo = document.getElementById('debug-info');
     if (debugInfo) {
       debugInfo.style.display = enabled ? 'block' : 'none';
