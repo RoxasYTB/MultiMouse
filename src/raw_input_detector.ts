@@ -7,6 +7,8 @@ export class RawInputMouseDetector extends EventEmitter {
   private isActive: boolean = false;
   private devices: Map<string, MouseDevice> = new Map();
   private messageProcessInterval: NodeJS.Timeout | null = null;
+  private lastMoveTimestamp: number = Date.now();
+  private currentPollingInterval: number = 16;
 
   public rawInputModule: RawInputModuleInterface | null = null;
 
@@ -20,16 +22,10 @@ export class RawInputMouseDetector extends EventEmitter {
 
   private setupUSBMonitorEvents(): void {
     this.usbMonitor.on('mouseDisconnected', (data: { deviceId: string; name: string }) => {
-      console.log(`USB Monitor: Déconnexion détectée - ${data.name}`);
-
-      setTimeout(() => {
-        this.removeAllInactiveDevices();
-      }, 500);
+      this.removeAllInactiveDevices();
     });
 
-    this.usbMonitor.on('mouseConnected', (data: { deviceId: string; name: string }) => {
-      console.log(`USB Monitor: Nouvelle souris connectée - ${data.name}`);
-    });
+    this.usbMonitor.on('mouseConnected', (data: { deviceId: string; name: string }) => {});
   }
 
   private removeAllInactiveDevices(): void {
@@ -39,7 +35,6 @@ export class RawInputMouseDetector extends EventEmitter {
       const device = this.devices.get(rawDeviceId);
       if (device) {
         this.devices.delete(rawDeviceId);
-        console.log(`Suppression device suite à déconnexion USB: ${device.id}`);
         this.emit('deviceRemoved', device);
       }
     }
@@ -56,7 +51,6 @@ export class RawInputMouseDetector extends EventEmitter {
 
       const success = this.rawInputModule.startRawInput();
       if (!success) {
-        console.log('ERREUR: Impossible de démarrer Raw Input');
         return false;
       }
 
@@ -64,16 +58,27 @@ export class RawInputMouseDetector extends EventEmitter {
 
       this.usbMonitor.start();
 
-      this.messageProcessInterval = setInterval(() => {
-        if (this.rawInputModule) {
-          this.rawInputModule.processMessages();
+      const tick = () => {
+        if (!this.rawInputModule) return;
+        this.rawInputModule.processMessages();
+
+        const idleFor = Date.now() - this.lastMoveTimestamp;
+        const targetInterval = idleFor > 500 ? 64 : 16;
+
+        if (targetInterval !== this.currentPollingInterval) {
+          this.currentPollingInterval = targetInterval;
+          if (this.messageProcessInterval) {
+            clearInterval(this.messageProcessInterval);
+          }
+          this.messageProcessInterval = setInterval(tick, this.currentPollingInterval);
         }
-      }, 16);
+      };
+
+      this.messageProcessInterval = setInterval(tick, this.currentPollingInterval);
 
       this.emit('started');
       return true;
     } catch (error) {
-      console.log('ERREUR: Impossible de charger le module Raw Input:', error);
       return false;
     }
   }
@@ -104,6 +109,8 @@ export class RawInputMouseDetector extends EventEmitter {
   }
 
   private handleMouseMove(moveData: any): void {
+    this.lastMoveTimestamp = Date.now();
+
     let actualData: any;
     if (moveData && moveData.type === 'mouseMove' && moveData.device) {
       actualData = {
@@ -185,8 +192,6 @@ export class RawInputMouseDetector extends EventEmitter {
 
   private handleDeviceChange(deviceData: DeviceChangeData): void {
     const deviceKey = `device_${deviceData.handle}`;
-    console.log(`=== DEVICE CHANGE EVENT ===`);
-    console.log(`Action: ${deviceData.action}, Device: ${deviceKey}, Name: ${deviceData.name}`);
 
     if (deviceData.action === 'added') {
       if (!this.devices.has(deviceKey)) {
@@ -201,13 +206,11 @@ export class RawInputMouseDetector extends EventEmitter {
         };
 
         this.devices.set(deviceKey, device);
-        console.log(`Device added: ${deviceKey} - ${deviceData.name}`);
         this.emit('deviceAdded', device);
       }
     } else if (deviceData.action === 'removed') {
       const device = this.devices.get(deviceKey);
       if (device) {
-        console.log(`Device removed: ${deviceKey} - ${device.name}`);
         this.devices.delete(deviceKey);
         this.emit('deviceRemoved', device);
       }
@@ -246,7 +249,6 @@ export class RawInputMouseDetector extends EventEmitter {
   public removeDevice(deviceId: string): void {
     if (this.devices.has(deviceId)) {
       const device = this.devices.get(deviceId)!;
-      console.log(`Removing device manually: ${deviceId} - ${device.name}`);
       this.devices.delete(deviceId);
       this.emit('deviceRemoved', device);
     }

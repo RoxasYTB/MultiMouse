@@ -13,7 +13,7 @@ export class ImprovedUSBMonitor extends EventEmitter {
   private monitorInterval: NodeJS.Timeout | null = null;
   private connectedDevices: Map<string, USBDevice> = new Map();
   private lastCheckTime: number = 0;
-  private static readonly MONITOR_INTERVAL = 2000;
+  private static readonly MONITOR_INTERVAL = 15000;
   private static readonly DEBOUNCE_TIME = 1000;
 
   constructor() {
@@ -52,7 +52,6 @@ export class ImprovedUSBMonitor extends EventEmitter {
 
     exec(command, { encoding: 'utf8', timeout: 5000 }, (error, stdout) => {
       if (error) {
-        console.log('Erreur USB monitoring:', error.message);
         if (callback) callback();
         return;
       }
@@ -71,11 +70,7 @@ export class ImprovedUSBMonitor extends EventEmitter {
             });
           }
         });
-
-        
-      } catch (parseError) {
-        console.log('Erreur parsing USB devices:', parseError);
-      }
+      } catch (parseError) {}
 
       if (callback) callback();
     });
@@ -96,7 +91,6 @@ export class ImprovedUSBMonitor extends EventEmitter {
     this.updateDeviceList(() => {
       for (const [deviceId, device] of previousDevices) {
         if (!this.connectedDevices.has(deviceId)) {
-          console.log(`USB Monitor: Souris déconnectée: ${device.name}`);
           this.emit('mouseDisconnected', {
             deviceId: deviceId,
             name: device.name,
@@ -106,7 +100,6 @@ export class ImprovedUSBMonitor extends EventEmitter {
 
       for (const [deviceId, device] of this.connectedDevices) {
         if (!previousDevices.has(deviceId)) {
-          console.log(`USB Monitor: Nouvelle souris: ${device.name}`);
           this.emit('mouseConnected', {
             deviceId: deviceId,
             name: device.name,

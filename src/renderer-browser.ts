@@ -60,7 +60,7 @@ class OrionixRenderer {
       }
 
       if (this.screenInfoReceived) {
-        setTimeout(() => this.updateDebugDisplay(), 100);
+        this.updateDebugDisplay();
       }
     } catch (err) {
       console.error('Erreur lors de la lecture des paramètres URL:', err);
@@ -325,7 +325,8 @@ class OrionixRenderer {
 
   public cleanup(): void {
     if (this.frameRequestId) {
-      clearImmediate(this.frameRequestId);
+      cancelAnimationFrame(this.frameRequestId);
+      this.frameRequestId = null;
     }
     this.cursors.forEach((c) => c.element?.remove());
     this.cursors.clear();
@@ -401,13 +402,14 @@ class OrionixRenderer {
 
   private startHighPrecisionLoop(): void {
     if (!this.highPrecisionMode) return;
+
     const loop = (): void => {
-      if (this.pendingUpdates.size) {
+      if (this.pendingUpdates.size > 0) {
         this.processPendingUpdates();
       }
-      this.frameRequestId = setImmediate(loop);
+      this.frameRequestId = requestAnimationFrame(loop);
     };
-    this.frameRequestId = setImmediate(loop);
+    this.frameRequestId = requestAnimationFrame(loop);
   }
 
   private handleHighPrecisionUpdate(d: any): void {
@@ -497,16 +499,7 @@ class OrionixRenderer {
       const adjustedX = d.x - this.screenOffsetX + ox;
       const adjustedY = d.y - this.screenOffsetY + oy;
 
-      Object.assign(cursor.element.style, {
-        transform: `translate3d(${adjustedX}px, ${adjustedY}px, 0)`,
-        width: `${w}px`,
-        height: `${h}px`,
-        zoom: 1,
-        filter: 'contrast(2) grayscale(1), drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.4))',
-        visibility: 'visible',
-        display: 'block',
-        opacity: '1',
-      });
+      cursor.element.style.transform = `translate3d(${adjustedX}px, ${adjustedY}px, 0) scale(${this.systemCursorSize / 32})`;
 
       const posEl = document.getElementById('cursor-position');
       if (posEl) {
@@ -773,12 +766,6 @@ window.addEventListener('load', () => {
     new OrionixRenderer();
   }
 });
-
-setTimeout(() => {
-  if (!document.querySelector('#renderer-ready')) {
-    new OrionixRenderer();
-  }
-}, 1000);
 
 window.addEventListener('error', (e: ErrorEvent) => {
   console.error('Window error:', e.error);

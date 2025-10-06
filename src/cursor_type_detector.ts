@@ -139,12 +139,10 @@ function Get-CursorType {
     }
 }
 
-# Boucle principale de détection optimisée pour performance maximale
 while ($true) {
     $cursorType = Get-CursorType
     Write-Output $cursorType
-    # Réduction de l'intervalle à 1ms pour détection ultra-rapide
-    Start-Sleep -Milliseconds 1
+    Start-Sleep -Milliseconds 16
 }
 `;
   }
@@ -253,5 +251,4 @@ while ($true) {
     };
   }
 }
-
 
