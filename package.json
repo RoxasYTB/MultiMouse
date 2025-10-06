@@ -1,6 +1,6 @@
 {
   "name": "orionix",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Application Orionix stable avec Electron.js",
   "main": "dist/main.js",
   "scripts": {
@@ -109,7 +109,7 @@
     ],
     "compression": "normal",
     "artifactName": "Orionix-${version}-${arch}-${os}.${ext}",
-    "afterPack": "scripts/afterPack.js",
+    "afterPack": "scripts/afterPack.cjs",
     "win": {
       "target": [
         "nsis",
