@@ -18,6 +18,24 @@ body {
       width: 100%;
       margin: 0;
       padding: 0;
+      cursor: default;
+}
+
+body * {
+      cursor: inherit;
+}
+
+button,
+a,
+.sidebar-item,
+.slide-cta,
+.slide-prev,
+.slide-next,
+.tab,
+input[type="checkbox"],
+input[type="range"],
+select {
+      cursor: pointer !important;
 }
 
 .main-container {
@@ -908,3 +926,4 @@ body {
       position: relative;
       width: 100%;
 }
+
