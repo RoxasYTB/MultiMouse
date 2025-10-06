@@ -105,8 +105,6 @@ class OrionixAppElectron {
   private devicePresent: Set<number> = new Set();
   private lockTeleportInterval: NodeJS.Timeout | null = null;
   private lockedPosition: { x: number; y: number } | null = null;
-  private buttonDownPosition: Map<number, { x: number; y: number }> = new Map();
-  private isDragging: Map<number, boolean> = new Map();
 
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config.json');
@@ -297,6 +295,10 @@ class OrionixAppElectron {
   }
 
   private onDeviceButton(event: any): void {
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      return;
+    }
+
     const dev = event.deviceHandle;
     const actionParts = event.action.split('-');
     if (actionParts.length !== 2) return;
@@ -304,29 +306,25 @@ class OrionixAppElectron {
     const btn = actionParts[0];
     const dir = actionParts[1];
 
-    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      const set = this.pressedButtonsByDevice.get(dev) ?? new Set<string>();
-      if (dir === 'down') {
-        set.add(btn);
-      } else if (dir === 'up') {
-        set.delete(btn);
-      }
-      this.pressedButtonsByDevice.set(dev, set);
-      return;
-    }
-
     const set = this.pressedButtonsByDevice.get(dev) ?? new Set<string>();
     if (dir === 'down') {
       set.add(btn);
-      const pos = this.lastHtmlPosByDevice.get(dev) ?? this.getFallbackSystemPos();
-      this.buttonDownPosition.set(dev, { x: pos.x, y: pos.y });
-      this.isDragging.set(dev, false);
     } else if (dir === 'up') {
       set.delete(btn);
-      this.buttonDownPosition.delete(dev);
-      this.isDragging.delete(dev);
     }
     this.pressedButtonsByDevice.set(dev, set);
+
+    if (!this.ownerHandle && dir === 'down') {
+      this.ownerHandle = dev;
+      const pos = this.lastHtmlPosByDevice.get(dev) ?? this.getFallbackSystemPos();
+      this.lockedPosition = { x: pos.x, y: pos.y };
+
+      if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
+        this.mouseDetector.rawInputModule.setSystemCursorPos(this.lockedPosition.x, this.lockedPosition.y);
+      }
+
+      this.startLockTeleportLoop();
+    }
 
     if (this.ownerHandle === dev && set.size === 0) {
       this.ownerHandle = null;
@@ -370,31 +368,6 @@ class OrionixAppElectron {
     const pos = this.lastHtmlPosByDevice.get(dev);
     if (!pos) return;
 
-    const buttonSet = this.pressedButtonsByDevice.get(dev);
-    const hasButtonPressed = buttonSet && buttonSet.size > 0;
-
-    if (hasButtonPressed && !this.isDragging.get(dev)) {
-      const buttonDownPos = this.buttonDownPosition.get(dev);
-      if (buttonDownPos) {
-        const distance = Math.sqrt(Math.pow(pos.x - buttonDownPos.x, 2) + Math.pow(pos.y - buttonDownPos.y, 2));
-
-        if (distance > 5) {
-          this.isDragging.set(dev, true);
-
-          if (!this.ownerHandle) {
-            this.ownerHandle = dev;
-            this.lockedPosition = { x: pos.x, y: pos.y };
-
-            if (this.mouseDetector.rawInputModule?.setSystemCursorPos) {
-              this.mouseDetector.rawInputModule.setSystemCursorPos(this.lockedPosition.x, this.lockedPosition.y);
-            }
-
-            this.startLockTeleportLoop();
-          }
-        }
-      }
-    }
-
     if (this.ownerHandle) {
       if (dev === this.ownerHandle) {
         if (this.lockedPosition && this.mouseDetector.rawInputModule?.setSystemCursorPos) {
@@ -413,8 +386,6 @@ class OrionixAppElectron {
     this.devicePresent.delete(dev);
     this.pressedButtonsByDevice.delete(dev);
     this.lastHtmlPosByDevice.delete(dev);
-    this.buttonDownPosition.delete(dev);
-    this.isDragging.delete(dev);
     if (this.ownerHandle === dev) {
       this.ownerHandle = null;
       this.lockedPosition = null;
@@ -758,9 +729,6 @@ class OrionixAppElectron {
     }
     this.ownerHandle = null;
     this.lockedPosition = null;
-    this.pressedButtonsByDevice.clear();
-    this.buttonDownPosition.clear();
-    this.isDragging.clear();
 
     this.settingsWindow = new BrowserWindow({
       width: 1200,
@@ -803,20 +771,61 @@ class OrionixAppElectron {
     this.settingsWindow.on('closed', () => {
       this.settingsWindow = null;
 
-      this.ownerHandle = null;
-      this.lockedPosition = null;
-      this.pressedButtonsByDevice.clear();
-      this.buttonDownPosition.clear();
-      this.isDragging.clear();
-
-      if (this.lockTeleportInterval) {
-        clearInterval(this.lockTeleportInterval);
-        this.lockTeleportInterval = null;
-      }
-
-      this.manageSystemCursorVisibility();
+      this.restartApplication();
     });
   }
+
+  private restartApplication(): void {
+    if (this.isShuttingDown) return;
+
+    this.isShuttingDown = true;
+
+    try {
+      if (this.addonModule && this.cursorHidden) {
+        this.addonModule.showSystemCursor();
+        this.cursorHidden = false;
+      }
+    } catch (error) {}
+
+    if (this.renderRequestId) {
+      clearImmediate(this.renderRequestId);
+    }
+
+    if (this.highPrecisionTimer) {
+      clearTimeout(this.highPrecisionTimer);
+    }
+
+    if (this.lockTeleportInterval) {
+      clearInterval(this.lockTeleportInterval);
+      this.lockTeleportInterval = null;
+    }
+
+    if (this.periodicExportTimer) {
+      clearInterval(this.periodicExportTimer);
+    }
+
+    if (this.fileWatcher) {
+      this.fileWatcher.close();
+    }
+
+    this.closeAllOverlays();
+
+    if (this.mouseDetector) {
+      this.mouseDetector.stop();
+    }
+
+    if (this.cursorTypeDetector) {
+      this.cursorTypeDetector.stop();
+    }
+
+    globalShortcut.unregisterAll();
+
+    this.saveConfig();
+
+    app.relaunch();
+    app.exit(0);
+  }
+
   private setupSettingsIPC(): void {
     ipcMain.on('cursor:htmlPos', (event, data: { deviceHandle: number; x: number; y: number }) => {
       this.lastHtmlPosByDevice.set(data.deviceHandle, { x: data.x, y: data.y });
@@ -1720,5 +1729,4 @@ if (process.platform === 'win32') {
     OrionixApp.shutdown();
   });
 }
-
 
